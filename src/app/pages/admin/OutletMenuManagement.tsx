@@ -161,7 +161,7 @@ export function OutletMenuManagement() {
     try {
       const ext = file.name.split(".").pop();
       const path = `products/${Date.now()}.${ext}`;
-      const url = await uploadFile("images", path, file);
+      const url = await uploadFile("product-images", path, file);
       setMenuForm({ ...menuForm, image_url: url });
       toast.success("Gambar berhasil diupload!");
     } catch (error: any) {
