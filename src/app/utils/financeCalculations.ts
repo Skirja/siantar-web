@@ -1,59 +1,75 @@
-// Finance calculation constants
-export const COST_PER_KM = 2000;
-export const SERVICE_FEE = 2000;
-export const DRIVER_SHARE_PERCENTAGE = 0.8; // 80%
-export const ADMIN_SHARE_PERCENTAGE = 0.2; // 20%
-export const MINIMUM_DISTANCE_KM = 1; // Minimum 1 km charge
+// Finance calculation constants (defaults, overridden by fee_settings from DB)
+export const DEFAULT_COST_PER_KM = 2000;
+export const DEFAULT_SERVICE_FEE = 2000;
+export const DEFAULT_ADMIN_FEE = 2000; // Biaya admin dari outlet
+export const DEFAULT_DRIVER_SHARE_PCT = 80;
+export const DEFAULT_ADMIN_SHARE_PCT = 20;
+export const DEFAULT_MIN_DISTANCE_KM = 1;
+
+export interface FeeSettings {
+  cost_per_km: number;
+  service_fee: number;
+  admin_fee: number;
+  driver_share_pct: number;
+  admin_share_pct: number;
+  min_distance_km: number;
+}
+
+export function getDefaultFeeSettings(): FeeSettings {
+  return {
+    cost_per_km: DEFAULT_COST_PER_KM,
+    service_fee: DEFAULT_SERVICE_FEE,
+    admin_fee: DEFAULT_ADMIN_FEE,
+    driver_share_pct: DEFAULT_DRIVER_SHARE_PCT,
+    admin_share_pct: DEFAULT_ADMIN_SHARE_PCT,
+    min_distance_km: DEFAULT_MIN_DISTANCE_KM,
+  };
+}
 
 export interface OrderFinance {
   subtotal: number;
+  adminFee: number; // Biaya admin dari outlet (Rp 2000/pesanan)
   serviceFee: number;
   deliveryFee: number;
-  distance: number; // Actual distance
-  chargedDistance: number; // Distance used for calculation (min 1 km)
-  isMinimumChargeApplied: boolean; // Whether minimum charge was applied
+  distance: number;
+  chargedDistance: number;
+  isMinimumChargeApplied: boolean;
   total: number;
   driverEarning: number;
-  amountToStore: number;
+  amountToStore: number; // Subtotal - admin_fee (yang dibayar ke outlet)
   setoranToAdmin: number;
   adminProfit: number;
 }
 
 export function calculateOrderFinance(
   subtotal: number,
-  distance: number
+  distance: number,
+  fees: FeeSettings = getDefaultFeeSettings()
 ): OrderFinance {
-  const serviceFee = SERVICE_FEE;
-  
-  // Apply minimum distance rule: if distance < 1 km, charge as 1 km
-  const chargedDistance = Math.max(distance, MINIMUM_DISTANCE_KM);
-  const isMinimumChargeApplied = distance < MINIMUM_DISTANCE_KM;
-  
-  // Delivery fee based on charged distance (minimum 1 km)
-  // Formula: delivery_fee = max(distance, 1 km) × 2000
-  const deliveryFee = chargedDistance * COST_PER_KM;
-  
-  // Driver gets 80% of delivery fee
-  const driverEarning = deliveryFee * DRIVER_SHARE_PERCENTAGE;
-  
-  // Admin gets 20% of delivery fee + service fee
-  const adminProfit = (deliveryFee * ADMIN_SHARE_PERCENTAGE) + serviceFee;
-  
-  const total = subtotal + serviceFee + deliveryFee;
-  
-  // Amount driver needs to pay to store
-  const amountToStore = subtotal;
-  
-  // Amount driver must setor (transfer) to admin
-  // Driver receives total from customer, pays store, keeps earning, setor the rest
-  const setoranToAdmin = serviceFee + (deliveryFee * ADMIN_SHARE_PERCENTAGE);
-  
+  const chargedDistance = Math.max(distance, fees.min_distance_km);
+  const isMinimumChargeApplied = distance < fees.min_distance_km;
+  const deliveryFee = chargedDistance * fees.cost_per_km;
+  const driverSharePct = fees.driver_share_pct / 100;
+  const adminSharePct = fees.admin_share_pct / 100;
+  const driverEarning = deliveryFee * driverSharePct;
+  const adminFromDelivery = deliveryFee * adminSharePct;
+
+  // Admin fee = Rp 2000 per pesanan dari outlet
+  const adminFee = fees.admin_fee;
+  const adminProfit = adminFromDelivery + fees.service_fee + adminFee;
+  const total = subtotal + fees.service_fee + deliveryFee;
+
+  // Amount to store = subtotal - admin_fee (outlet menerima dikurangi biaya admin)
+  const amountToStore = subtotal - adminFee;
+  const setoranToAdmin = fees.service_fee + adminFromDelivery + adminFee;
+
   return {
     subtotal,
-    serviceFee,
+    adminFee,
+    serviceFee: fees.service_fee,
     deliveryFee,
-    distance, // Actual distance
-    chargedDistance, // Distance used for calculation
+    distance,
+    chargedDistance,
     isMinimumChargeApplied,
     total,
     driverEarning,
@@ -67,7 +83,6 @@ export function formatCurrency(amount: number): string {
   return `Rp ${amount.toLocaleString("id-ID")}`;
 }
 
-// Bonus calculation for drivers
 export interface DriverBonus {
   dailyBonus: number;
   weeklyBonus: number;
@@ -79,20 +94,16 @@ export function calculateDriverBonus(
   weeklyOrders: number
 ): DriverBonus {
   let dailyBonus = 0;
-  
-  if (dailyOrders >= 15) {
-    dailyBonus = 30000;
-  } else if (dailyOrders >= 10) {
-    dailyBonus = 15000;
-  } else if (dailyOrders >= 5) {
-    dailyBonus = 5000;
-  }
-  
+  if (dailyOrders >= 15) dailyBonus = 30000;
+  else if (dailyOrders >= 10) dailyBonus = 15000;
+  else if (dailyOrders >= 5) dailyBonus = 5000;
+
   const weeklyBonus = weeklyOrders >= 50 ? 50000 : 0;
-  
-  return {
-    dailyBonus,
-    weeklyBonus,
-    totalBonus: dailyBonus + weeklyBonus,
-  };
+
+  return { dailyBonus, weeklyBonus, totalBonus: dailyBonus + weeklyBonus };
+}
+
+// Generate 3-digit unique payment code
+export function generateUniquePaymentCode(): number {
+  return Math.floor(100 + Math.random() * 900); // 100-999
 }

@@ -7,97 +7,127 @@ import {
   User,
   Phone,
   CheckCircle,
-  X,
   DollarSign,
   Wallet,
   TrendingUp,
   LogOut,
   Gift,
-  Trophy,
+  Loader2,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useData } from "../../contexts/DataContext";
 import { calculateOrderFinance, calculateDriverBonus, formatCurrency } from "../../utils/financeCalculations";
 import { Logo } from "../../components/Logo";
+import { toast } from "sonner";
 
 export function DriverPanel() {
-  const { role, isAuthenticated, logout, driverId, sessionId } = useAuth();
+  const { role, isAuthenticated, logout, driverId } = useAuth();
   const navigate = useNavigate();
-  const { orders, updateOrderStatus, drivers, getDriverByUsername } = useData();
+  const { orders, updateOrderStatus, feeSettings } = useData();
   const [activeOrder, setActiveOrder] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
 
-  // Redirect if not authenticated as driver
   useEffect(() => {
     if (!isAuthenticated || role !== "driver" || !driverId) {
       navigate("/login-driver");
-      return;
     }
-
-    // Check if session is still valid (detect login from another device)
-    const driver = drivers.find(d => d.id === driverId);
-    if (driver && driver.currentSessionId !== sessionId) {
-      // Session invalidated - logout
-      alert("Akun Anda telah login dari perangkat lain. Silakan login kembali.");
-      logout();
-      navigate("/login-driver");
-    }
-  }, [isAuthenticated, role, driverId, sessionId, drivers, navigate, logout]);
+  }, [isAuthenticated, role, driverId, navigate]);
 
   if (!isAuthenticated || role !== "driver" || !driverId) {
     return null;
   }
 
-  // Get orders assigned ONLY to this specific driver
   const myOrders = orders.filter(
-    (o) => o.driverId === driverId && o.status !== "pending" && o.status !== "completed"
+    (o) => o.driver_id === driverId && o.status !== "pending" && o.status !== "completed"
   );
-  const completedOrders = orders.filter((o) => o.driverId === driverId && o.status === "completed");
+  const completedOrders = orders.filter((o) => o.driver_id === driverId && o.status === "completed");
+
+  const today = new Date().toDateString();
+  const todaysCompleted = completedOrders.filter(
+    (o) => new Date(o.created_at).toDateString() === today
+  );
 
   const handleAccept = (order: any) => {
     setActiveOrder(order);
   };
 
-  const handleGoingToStore = () => {
+  const handleGoingToStore = async () => {
     if (activeOrder) {
-      updateOrderStatus(activeOrder.id, "going-to-store");
+      setLoading(true);
+      try {
+        await updateOrderStatus(activeOrder.id, "going-to-store", driverId);
+        setActiveOrder({ ...activeOrder, status: "going-to-store" });
+        toast.success("Status diupdate: Menuju Toko");
+      } catch {
+        toast.error("Gagal mengupdate status");
+      }
+      setLoading(false);
     }
   };
 
-  const handlePickup = () => {
+  const handlePickup = async () => {
     if (activeOrder) {
-      updateOrderStatus(activeOrder.id, "picked-up");
+      setLoading(true);
+      try {
+        await updateOrderStatus(activeOrder.id, "picked-up", driverId);
+        setActiveOrder({ ...activeOrder, status: "picked-up" });
+        toast.success("Pesanan berhasil diambil");
+      } catch {
+        toast.error("Gagal mengupdate status");
+      }
+      setLoading(false);
     }
   };
 
-  const handleDeliver = () => {
+  const handleDeliver = async () => {
     if (activeOrder) {
-      updateOrderStatus(activeOrder.id, "on-delivery");
+      setLoading(true);
+      try {
+        await updateOrderStatus(activeOrder.id, "on-delivery", driverId);
+        setActiveOrder({ ...activeOrder, status: "on-delivery" });
+        toast.success("Mulai pengiriman");
+      } catch {
+        toast.error("Gagal mengupdate status");
+      }
+      setLoading(false);
     }
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     if (activeOrder) {
-      updateOrderStatus(activeOrder.id, "completed");
-      setActiveOrder(null);
+      setLoading(true);
+      try {
+        await updateOrderStatus(activeOrder.id, "completed", driverId);
+        toast.success("Pengiriman selesai!");
+        setActiveOrder(null);
+      } catch {
+        toast.error("Gagal menyelesaikan order");
+      }
+      setLoading(false);
     }
   };
 
-  // Mock stats - in real app, calculate from actual orders
   const todayStats = {
-    orders: completedOrders.length,
-    earning: completedOrders.reduce((sum, o) => {
-      const finance = calculateOrderFinance(o.subtotal, o.distance);
+    orders: todaysCompleted.length,
+    earning: todaysCompleted.reduce((sum, o) => {
+      const finance = calculateOrderFinance(o.subtotal, o.distance, {
+        cost_per_km: feeSettings.cost_per_km ?? 2000,
+        service_fee: feeSettings.service_fee ?? 2000,
+        admin_fee: feeSettings.admin_fee ?? 2000,
+        driver_share_pct: feeSettings.driver_share_pct ?? 80,
+        admin_share_pct: feeSettings.admin_share_pct ?? 20,
+        min_distance_km: feeSettings.min_distance_km ?? 1,
+      });
       return sum + finance.driverEarning;
     }, 0),
-    distance: completedOrders.reduce((sum, o) => sum + o.distance, 0),
+    distance: todaysCompleted.reduce((sum, o) => sum + o.distance, 0),
   };
 
-  const weeklyOrders = completedOrders.length; // Mock
+  const weeklyOrders = completedOrders.length;
   const bonus = calculateDriverBonus(todayStats.orders, weeklyOrders);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
@@ -128,7 +158,6 @@ export function DriverPanel() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {!activeOrder ? (
           <div>
-            {/* Driver Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="bg-white rounded-xl shadow-sm p-5">
                 <div className="flex items-center justify-between mb-2">
@@ -160,7 +189,6 @@ export function DriverPanel() {
               </div>
             </div>
 
-            {/* Bonus Section */}
             <div className="bg-gradient-to-r from-[#FF6A00] to-[#FF8534] rounded-2xl shadow-lg p-6 mb-8 text-white">
               <div className="flex items-center gap-2 mb-4">
                 <Gift className="w-6 h-6" />
@@ -201,7 +229,6 @@ export function DriverPanel() {
               </div>
             </div>
 
-            {/* Available Orders */}
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-4">
                 Order Tersedia
@@ -217,7 +244,14 @@ export function DriverPanel() {
               ) : (
                 <div className="space-y-4">
                   {myOrders.map((order) => {
-                    const finance = calculateOrderFinance(order.subtotal, order.distance);
+                    const finance = calculateOrderFinance(order.subtotal, order.distance, {
+                      cost_per_km: feeSettings.cost_per_km ?? 2000,
+                      service_fee: feeSettings.service_fee ?? 2000,
+                      admin_fee: feeSettings.admin_fee ?? 2000,
+                      driver_share_pct: feeSettings.driver_share_pct ?? 80,
+                      admin_share_pct: feeSettings.admin_share_pct ?? 20,
+                      min_distance_km: feeSettings.min_distance_km ?? 1,
+                    });
 
                     return (
                       <div
@@ -227,19 +261,15 @@ export function DriverPanel() {
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex-1">
                             <div className="font-semibold text-gray-900 mb-2 text-lg">
-                              Order #{order.id}
+                              Order #{order.id.slice(0, 8)}
                             </div>
                             <div className="space-y-2 text-sm text-gray-600">
                               <div className="flex items-start gap-2">
                                 <User className="w-4 h-4 mt-0.5 flex-shrink-0" />
                                 <div>
-                                  <div>{order.customerName}</div>
-                                  <div className="text-xs">{order.customerPhone || "No phone"}</div>
+                                  <div>{order.customer_name}</div>
+                                  <div className="text-xs">{order.customer_phone || "No phone"}</div>
                                 </div>
-                              </div>
-                              <div className="flex items-start gap-2">
-                                <Package className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                                <span>{order.items.map(i => `${i.name} x${i.quantity}`).join(", ")}</span>
                               </div>
                             </div>
                           </div>
@@ -259,7 +289,7 @@ export function DriverPanel() {
                                 Ambil di:
                               </div>
                               <div className="text-gray-600">
-                                {order.outlet.name} - {order.outlet.village}
+                                {order.outlet_name}
                               </div>
                             </div>
                           </div>
@@ -270,31 +300,29 @@ export function DriverPanel() {
                                 Antar ke:
                               </div>
                               <div className="text-gray-600">
-                                {order.address}, {order.customerVillage}
+                                {order.address}, {order.customer_village}
                               </div>
                             </div>
                           </div>
                         </div>
 
-                        {/* Finance Breakdown */}
                         <div className="bg-blue-50 rounded-lg p-4 mb-4">
                           <div className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                             <Wallet className="w-4 h-4" />
                             Detail Keuangan
                           </div>
                           <div className="space-y-2 text-sm">
-                            {/* Payment Method Info */}
                             <div className="flex justify-between items-center pb-2 border-b border-blue-200">
                               <span className="text-gray-600">Metode Bayar:</span>
                               <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                order.paymentMethod === "cod" 
-                                  ? "bg-yellow-100 text-yellow-800" 
+                                order.payment_method === "cod"
+                                  ? "bg-yellow-100 text-yellow-800"
                                   : "bg-green-100 text-green-800"
                               }`}>
-                                {order.paymentMethod === "cod" ? "💵 COD (Tagih)" : "✓ Sudah Dibayar"}
+                                {order.payment_method === "cod" ? "COD (Tagih)" : "Sudah Dibayar"}
                               </span>
                             </div>
-                            
+
                             <div className="flex justify-between">
                               <span className="text-gray-600">Customer bayar:</span>
                               <span className="font-semibold text-gray-900">
@@ -321,12 +349,11 @@ export function DriverPanel() {
                                 </span>
                               </div>
                             </div>
-                            
-                            {/* COD Collection Notice */}
-                            {order.paymentMethod === "cod" && (
+
+                            {order.payment_method === "cod" && (
                               <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
                                 <p className="text-xs text-yellow-800 font-medium">
-                                  ⚠️ Tagih uang ke customer: {formatCurrency(finance.total)}
+                                  Tagih uang ke customer: {formatCurrency(finance.total)}
                                 </p>
                               </div>
                             )}
@@ -349,7 +376,6 @@ export function DriverPanel() {
           </div>
         ) : (
           <div>
-            {/* Active Order */}
             <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-gray-900">
@@ -369,20 +395,16 @@ export function DriverPanel() {
               <div className="space-y-4 mb-6">
                 <div>
                   <div className="font-semibold text-gray-900 mb-2">
-                    Order #{activeOrder.id}
+                    Order #{activeOrder.id.slice(0, 8)}
                   </div>
                   <div className="space-y-2 text-sm text-gray-600">
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4" />
-                      <span>{activeOrder.customerName}</span>
+                      <span>{activeOrder.customer_name}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Phone className="w-4 h-4" />
-                      <span>{activeOrder.customerPhone || "No phone"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Package className="w-4 h-4" />
-                      <span>{activeOrder.items.map((i: any) => `${i.name} x${i.quantity}`).join(", ")}</span>
+                      <span>{activeOrder.customer_phone || "No phone"}</span>
                     </div>
                   </div>
                 </div>
@@ -395,7 +417,7 @@ export function DriverPanel() {
                         Lokasi Ambil:
                       </div>
                       <div className="text-gray-600">
-                        {activeOrder.outlet.name} - {activeOrder.outlet.village}
+                        {activeOrder.outlet_name}
                       </div>
                     </div>
                   </div>
@@ -406,15 +428,21 @@ export function DriverPanel() {
                         Alamat Pengiriman:
                       </div>
                       <div className="text-gray-600">
-                        {activeOrder.address}, {activeOrder.customerVillage}
+                        {activeOrder.address}, {activeOrder.customer_village}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Finance Breakdown for Active Order */}
                 {(() => {
-                  const finance = calculateOrderFinance(activeOrder.subtotal, activeOrder.distance);
+                  const finance = calculateOrderFinance(activeOrder.subtotal, activeOrder.distance, {
+                    cost_per_km: feeSettings.cost_per_km ?? 2000,
+                    service_fee: feeSettings.service_fee ?? 2000,
+                    admin_fee: feeSettings.admin_fee ?? 2000,
+                    driver_share_pct: feeSettings.driver_share_pct ?? 80,
+                    admin_share_pct: feeSettings.admin_share_pct ?? 20,
+                    min_distance_km: feeSettings.min_distance_km ?? 1,
+                  });
                   return (
                     <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-lg p-5">
                       <div className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -451,7 +479,7 @@ export function DriverPanel() {
                           </div>
                         </div>
                         <div className="text-xs text-gray-600 bg-white/50 rounded p-2">
-                          💡 Jarak: {activeOrder.distance} km • Earning: 80% dari delivery fee
+                          Jarak: {activeOrder.distance} km - Earning: 80% dari delivery fee
                         </div>
                       </div>
                     </div>
@@ -459,37 +487,44 @@ export function DriverPanel() {
                 })()}
               </div>
 
-              {/* Action Buttons */}
               <div className="space-y-3">
                 {activeOrder.status === "processing" && (
                   <button
                     onClick={handleGoingToStore}
-                    className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium"
+                    disabled={loading}
+                    className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                   >
+                    {loading && <Loader2 className="w-5 h-5 animate-spin" />}
                     Menuju Toko
                   </button>
                 )}
                 {activeOrder.status === "going-to-store" && (
                   <button
                     onClick={handlePickup}
-                    className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium"
+                    disabled={loading}
+                    className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                   >
+                    {loading && <Loader2 className="w-5 h-5 animate-spin" />}
                     Ambil Pesanan
                   </button>
                 )}
                 {activeOrder.status === "picked-up" && (
                   <button
                     onClick={handleDeliver}
-                    className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium"
+                    disabled={loading}
+                    className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                   >
+                    {loading && <Loader2 className="w-5 h-5 animate-spin" />}
                     Mulai Pengiriman
                   </button>
                 )}
                 {activeOrder.status === "on-delivery" && (
                   <button
                     onClick={handleComplete}
-                    className="w-full py-4 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-medium"
+                    disabled={loading}
+                    className="w-full py-4 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                   >
+                    {loading && <Loader2 className="w-5 h-5 animate-spin" />}
                     Selesaikan Pengiriman
                   </button>
                 )}

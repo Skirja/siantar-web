@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Search, Clock, ShoppingBag, Package, Coffee, MapPin, Truck, X, Store, ImageIcon } from "lucide-react";
+import { Search, ShoppingBag, Package, Coffee, MapPin, Truck, X, Store, ImageIcon, Loader2 } from "lucide-react";
 import { useData } from "../../contexts/DataContext";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -15,7 +15,7 @@ export function Home() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showOrderNotification, setShowOrderNotification] = useState(true);
-  const { orders, outlets } = useData();
+  const { orders, outlets, loadingOutlets, getProductsByOutlet } = useData();
   const navigate = useNavigate();
 
   // Get active orders (not completed)
@@ -150,8 +150,13 @@ export function Home() {
           </p>
         </div>
 
-        {/* Empty State - No Outlets at All */}
-        {outlets.length === 0 ? (
+        {/* Loading State */}
+        {loadingOutlets ? (
+          <div className="flex justify-center items-center py-16">
+            <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
+          </div>
+        ) : outlets.length === 0 ? (
+          /* Empty State - No Outlets at All */
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -204,13 +209,12 @@ export function Home() {
                 >
                   {/* Outlet Image/Placeholder */}
                   <div className="aspect-video overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 relative">
-                    {outlet.image ? (
+                    {outlet.image_url ? (
                       <img
-                        src={outlet.image}
+                        src={outlet.image_url}
                         alt={outlet.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                         onError={(e) => {
-                          // If image fails to load, show placeholder
                           e.currentTarget.style.display = 'none';
                           const placeholder = e.currentTarget.nextElementSibling;
                           if (placeholder) {
@@ -221,7 +225,7 @@ export function Home() {
                     ) : null}
                     {/* Image Fallback */}
                     <div 
-                      className={`absolute inset-0 flex flex-col items-center justify-center ${outlet.image ? 'hidden' : 'flex'}`}
+                      className={`absolute inset-0 flex flex-col items-center justify-center ${outlet.image_url ? 'hidden' : 'flex'}`}
                     >
                       <div className="bg-white/80 backdrop-blur-sm rounded-full p-6 mb-3">
                         <ImageIcon className="w-10 h-10 text-gray-400" />
@@ -253,7 +257,7 @@ export function Home() {
                       
                       <div className="flex items-center gap-2 text-gray-600">
                         <Package className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                        <span className="text-sm">{outlet.menuCount || 0} menu tersedia</span>
+                        <span className="text-sm">{getProductsByOutlet(outlet.id).length} menu tersedia</span>
                       </div>
                     </div>
 

@@ -1,15 +1,11 @@
 import { Link, useNavigate } from "react-router";
 import { ArrowLeft, Plus, Minus, Trash2 } from "lucide-react";
 import { useCart } from "../../contexts/CartContext";
+import { formatCurrency } from "../../utils/financeCalculations";
 
 export function Cart() {
-  const { items, updateQuantity, removeItem, notes, setNotes } = useCart();
+  const { items, updateQuantity, removeItem, notes, setNotes, subtotal } = useCart();
   const navigate = useNavigate();
-
-  const subtotal = items.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
 
   const handleCheckout = () => {
     if (items.length > 0) {
@@ -59,23 +55,40 @@ export function Cart() {
 
         {/* Cart Items */}
         <div className="space-y-4 mb-6">
-          {items.map((item) => (
+          {items.map((item, index) => (
             <div
-              key={item.id}
+              key={`${item.productId}-${index}`}
               className="bg-white rounded-xl shadow-sm p-4 flex items-center gap-4"
             >
+              {item.imageUrl && (
+                <img
+                  src={item.imageUrl}
+                  alt={item.name}
+                  className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                />
+              )}
               <div className="flex-1">
                 <h3 className="font-semibold text-gray-900">{item.name}</h3>
-                <p className="text-sm text-gray-600 mt-1">{item.storeName}</p>
+                {item.selectedVariant && (
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Varian: {item.selectedVariant.name}
+                  </p>
+                )}
+                {item.selectedExtras.length > 0 && (
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Extra: {item.selectedExtras.map((e) => e.name).join(", ")}
+                  </p>
+                )}
+                <p className="text-sm text-gray-600 mt-1">{item.outletName}</p>
                 <p className="text-orange-600 font-medium mt-2">
-                  Rp {item.price.toLocaleString("id-ID")}
+                  {formatCurrency(item.price)}
                 </p>
               </div>
 
               {/* Quantity Controls */}
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                  onClick={() => updateQuantity(index, item.quantity - 1)}
                   className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   <Minus className="w-4 h-4" />
@@ -84,13 +97,13 @@ export function Cart() {
                   {item.quantity}
                 </span>
                 <button
-                  onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                  onClick={() => updateQuantity(index, item.quantity + 1)}
                   className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => removeItem(item.id)}
+                  onClick={() => removeItem(index)}
                   className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -119,7 +132,7 @@ export function Cart() {
           <div className="flex justify-between items-center text-lg mb-4">
             <span className="text-gray-600">Subtotal</span>
             <span className="font-bold text-gray-900">
-              Rp {subtotal.toLocaleString("id-ID")}
+              {formatCurrency(subtotal)}
             </span>
           </div>
           <button

@@ -1,15 +1,26 @@
 import { Link, useNavigate } from "react-router";
-import { Clock, Package, MapPin, CheckCircle2 } from "lucide-react";
+import { Clock, MapPin, CheckCircle2, Package, Loader2 } from "lucide-react";
 import { useData } from "../../contexts/DataContext";
+import { formatCurrency } from "../../utils/financeCalculations";
 import { motion } from "motion/react";
 
 export function History() {
-  const { orders } = useData();
+  const { orders, loadingOrders } = useData();
   const navigate = useNavigate();
 
-  // Get orders sorted by most recent first
-  const sortedOrders = [...orders].sort((a, b) => 
-    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  const customerName = localStorage.getItem("sianter_customer_name") || "";
+  const customerPhone = localStorage.getItem("sianter_customer_phone") || "";
+
+  // Filter orders for this customer
+  const customerOrders = orders.filter((order) => {
+    if (customerName && order.customer_name === customerName) return true;
+    if (customerPhone && order.customer_phone === customerPhone) return true;
+    return false;
+  });
+
+  // Sort by most recent first
+  const sortedOrders = [...customerOrders].sort((a, b) =>
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 
   const getStatusBadge = (status: string) => {
@@ -49,9 +60,24 @@ export function History() {
       month: "short",
       year: "numeric",
       hour: "2-digit",
-      minute: "2-digit"
+      minute: "2-digit",
     });
   };
+
+  if (loadingOrders) {
+    return (
+      <div className="pb-20 md:pb-8 min-h-screen bg-gradient-to-b from-gray-50 to-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">
+            Riwayat Pesanan
+          </h1>
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pb-20 md:pb-8 min-h-screen bg-gradient-to-b from-gray-50 to-white">
@@ -87,39 +113,57 @@ export function History() {
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="font-semibold text-gray-900">
-                        Order #{order.id}
+                        Order #{order.id.slice(0, 8)}
                       </span>
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(order.status)}`}>
-                        {order.status === "completed" && <CheckCircle2 className="w-3.5 h-3.5" />}
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(order.status)}`}
+                      >
+                        {order.status === "completed" && (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        )}
                         {getStatusLabel(order.status)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
                       <Clock className="w-4 h-4" />
-                      <span>{formatDate(order.timestamp)}</span>
+                      <span>{formatDate(order.created_at)}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <MapPin className="w-4 h-4" />
-                      <span>{order.outlet.name} → {order.customerVillage}</span>
+                      <span>
+                        {order.outlet_name} → {order.customer_village}
+                      </span>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-sm text-gray-600 mb-1">Total</div>
                     <div className="text-lg font-bold text-orange-600">
-                      Rp {order.total.toLocaleString("id-ID")}
+                      {formatCurrency(order.total)}
                     </div>
                   </div>
                 </div>
 
                 <div className="border-t border-gray-200 pt-4">
-                  <div className="text-sm text-gray-600 mb-2">Item:</div>
+                  <div className="text-sm text-gray-600 mb-2">Ringkasan:</div>
                   <div className="space-y-1">
-                    {order.items.map((item, idx) => (
-                      <div key={idx} className="text-sm text-gray-900 flex justify-between">
-                        <span>• {item.name} x{item.quantity}</span>
-                        <span className="text-gray-600">Rp {(item.price * item.quantity).toLocaleString("id-ID")}</span>
-                      </div>
-                    ))}
+                    <div className="text-sm text-gray-900 flex justify-between">
+                      <span>Subtotal</span>
+                      <span className="text-gray-600">
+                        {formatCurrency(order.subtotal)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-900 flex justify-between">
+                      <span>Biaya Layanan</span>
+                      <span className="text-gray-600">
+                        {formatCurrency(order.service_fee)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-900 flex justify-between">
+                      <span>Biaya Kirim</span>
+                      <span className="text-gray-600">
+                        {formatCurrency(order.delivery_fee)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -128,7 +172,9 @@ export function History() {
                     onClick={() => navigate(`/home/tracking/${order.id}`)}
                     className="py-2 text-orange-600 font-medium border-2 border-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
                   >
-                    {order.status === "completed" ? "Lihat Detail" : "Lacak Pesanan"}
+                    {order.status === "completed"
+                      ? "Lihat Detail"
+                      : "Lacak Pesanan"}
                   </button>
                   <button className="py-2 bg-orange-500 text-white font-medium hover:bg-orange-600 rounded-lg transition-colors">
                     Pesan Lagi

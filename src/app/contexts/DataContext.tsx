@@ -1,516 +1,359 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { supabase } from "../../lib/supabase";
+import type { Tables, TablesInsert } from "../../lib/database.types";
 
-// Village types
-export type Village =
-  | "Desa Air Dua"
-  | "Desa Balai Riam (Pusat Kecamatan)"
-  | "Desa Bangun Jaya"
-  | "Desa Bukit Sungkai"
-  | "Desa Jihing (Jihing Janga area)"
-  | "Desa Lupu Peruca"
-  | "Desa Pempaning"
-  | "Desa Sekuningan Baru";
+// Re-export types for backward compatibility
+export type Village = string;
+export type OrderStatus = "pending" | "processing" | "going-to-store" | "picked-up" | "on-delivery" | "completed";
 
-// Order status types
-export type OrderStatus =
-  | "pending" // Waiting for admin to assign driver
-  | "processing" // Diproses - Admin assigned driver
-  | "going-to-store" // Driver menuju toko
-  | "picked-up" // Pesanan diambil
-  | "on-delivery" // Dalam perjalanan
-  | "completed"; // Selesai
+export type Outlet = Tables<"outlets">;
+export type Product = Tables<"products">;
+export type ProductVariant = Tables<"product_variants">;
+export type ProductExtra = Tables<"product_extras">;
+export type Order = Tables<"orders">;
+export type OrderItem = Tables<"order_items">;
+export type Profile = Tables<"profiles">;
+export type PaymentAccount = Tables<"payment_accounts">;
+export type FeeSetting = Tables<"fee_settings">;
+export type DistanceMatrix = Tables<"distance_matrix">;
 
-// Outlet interface
-export interface Outlet {
-  id: string;
-  name: string;
-  village: Village;
-  category: "food" | "drink" | "package";
-  menuCount: number;
-  image?: string; // Optional outlet image URL
-}
-
-// Product Extra/Addon interface
-export interface ProductExtra {
-  id: string;
-  name: string;
-  price: number;
-}
-
-// Product Size/Variant interface
-export interface ProductSize {
-  id: string;
-  name: string; // "Small", "Medium", "Large"
-  priceAdjustment: number; // Additional price
-}
-
-// Product interface
-export interface Product {
-  id: string;
-  outletId: string;
-  name: string;
-  price: number;
-  discountPrice?: number;
-  description: string;
-  category: "Makanan" | "Minuman";
-  sizes: ProductSize[];
+// Extended product with variants and extras
+export interface ProductWithDetails extends Product {
+  variants: ProductVariant[];
   extras: ProductExtra[];
-  imageUrl?: string;
-  isAvailable: boolean; // Stock availability
 }
 
-// Cart Item interface with full details
+// Extended order with items
+export interface OrderWithItems extends Order {
+  items: OrderItem[];
+}
+
+// Cart item
 export interface CartItem {
   productId: string;
   name: string;
   basePrice: number;
   quantity: number;
-  selectedSize?: ProductSize;
+  selectedVariant?: ProductVariant;
   selectedExtras: ProductExtra[];
-  price: number; // Final calculated price per item
+  price: number;
   outletId: string;
   outletName: string;
-}
-
-// Order interface
-export interface Order {
-  id: string;
-  customerName: string;
-  customerPhone: string;
-  customerVillage: Village;
-  address: string;
-  outlet: Outlet;
-  items: Array<{
-    name: string;
-    quantity: number;
-    price: number;
-    selectedSize?: string;
-    selectedExtras?: string[];
-  }>;
-  subtotal: number;
-  distance: number; // Actual distance between villages
-  chargedDistance?: number; // Distance used for calculation (min 1 km)
-  isMinimumChargeApplied?: boolean; // Whether minimum charge was applied
-  deliveryFee: number;
-  serviceFee: number;
-  total: number;
-  paymentMethod: "cod" | "transfer";
-  paymentProvider?: "BRI" | "DANA"; // For transfer payments
-  uniquePaymentCode?: number; // 3-digit unique code
-  finalPaymentAmount?: number; // Total + unique code
-  paymentProofUrl?: string; // Uploaded payment proof
-  paymentStatus?: "pending" | "waiting_confirmation" | "confirmed" | "rejected"; // Payment verification status
-  status: OrderStatus;
-  driverId?: string;
-  driverName?: string;
-  timestamp: string;
-  isManualOrder?: boolean; // Mark if order is created by admin
-  isDeliveryService?: boolean; // Mark if order is a delivery service (kirim barang)
-  deliveryData?: {
-    senderName: string;
-    senderPhone: string;
-    fromVillage: Village;
-    fromAddress: string;
-    receiverName: string;
-    receiverPhone: string;
-    toVillage: Village;
-    toAddress: string;
-    packageCategory: string;
-    estimatedWeight: number;
-    notes?: string;
-  };
-}
-
-// Driver interface
-export interface Driver {
-  id: string;
-  name: string;
-  phone: string;
-  username: string;
-  passwordHash: string;
-  isActive: boolean;
-  status: "online" | "offline";
-  currentSessionId?: string;
-  ordersToday: number;
-  weeklyOrders: number;
-  totalEarningToday: number;
-  createdAt: string;
+  imageUrl?: string | null;
 }
 
 interface DataContextType {
-  // Outlets
   outlets: Outlet[];
-  addOutlet: (outlet: Omit<Outlet, "id">) => void;
-  updateOutlet: (id: string, outlet: Partial<Outlet>) => void;
-  deleteOutlet: (id: string) => void;
+  addOutlet: (outlet: TablesInsert<"outlets">) => Promise<void>;
+  updateOutlet: (id: string, outlet: Partial<TablesInsert<"outlets">>) => Promise<void>;
+  deleteOutlet: (id: string) => Promise<void>;
+  loadingOutlets: boolean;
 
-  // Products
-  products: Product[];
-  addProduct: (product: Omit<Product, "id">) => void;
-  updateProduct: (id: string, product: Partial<Product>) => void;
-  deleteProduct: (id: string) => void;
-  getProductsByOutlet: (outletId: string) => Product[];
+  products: ProductWithDetails[];
+  addProduct: (product: TablesInsert<"products">, variants: TablesInsert<"product_variants">[], extras: TablesInsert<"product_extras">[]) => Promise<void>;
+  updateProduct: (id: string, product: Partial<TablesInsert<"products">>) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  getProductsByOutlet: (outletId: string) => ProductWithDetails[];
+  refreshProducts: () => Promise<void>;
+  loadingProducts: boolean;
 
-  // Orders
   orders: Order[];
-  addOrder: (order: Omit<Order, "id">) => string; // Returns the created order ID
-  updateOrderStatus: (orderId: string, status: OrderStatus) => void;
-  updateOrderPayment: (orderId: string, paymentData: { paymentProofUrl?: string; paymentStatus?: Order["paymentStatus"] }) => void;
-  updateOrder: (orderId: string, updates: Partial<Order>) => void;
-  assignDriver: (orderId: string, driverId: string, driverName: string) => void;
+  addOrder: (order: TablesInsert<"orders">, items: TablesInsert<"order_items">[]) => Promise<string>;
+  updateOrderStatus: (orderId: string, status: OrderStatus, changedBy?: string) => Promise<void>;
+  updateOrderPayment: (orderId: string, paymentData: { payment_proof_url?: string; payment_status?: string }) => Promise<void>;
+  updateOrder: (orderId: string, updates: Partial<TablesInsert<"orders">>) => Promise<void>;
+  assignDriver: (orderId: string, driverId: string, driverName: string) => Promise<void>;
+  refreshOrders: () => Promise<void>;
+  loadingOrders: boolean;
 
-  // Drivers
-  drivers: Driver[];
-  addDriver: (driver: Omit<Driver, "id" | "ordersToday" | "weeklyOrders" | "totalEarningToday" | "createdAt" | "status">) => Driver;
-  updateDriver: (id: string, driver: Partial<Driver>) => void;
-  deactivateDriver: (id: string) => void;
-  resetDriverCredentials: (id: string, newUsername: string, newPasswordHash: string) => void;
-  updateDriverSession: (id: string, sessionId: string) => void;
-  getDriverByUsername: (username: string) => Driver | undefined;
-  updateDriverStats: (driverId: string, stats: Partial<Driver>) => void;
+  drivers: Profile[];
+  addDriver: (name: string, phone: string, password: string) => Promise<void>;
+  updateDriver: (id: string, driver: Partial<Profile>) => Promise<void>;
+  deactivateDriver: (id: string) => Promise<void>;
+  refreshDrivers: () => Promise<void>;
+  loadingDrivers: boolean;
 
-  // Distance calculation
-  getDistance: (villageA: Village, villageB: Village) => number;
+  paymentAccounts: PaymentAccount[];
+  refreshPaymentAccounts: () => Promise<void>;
+
+  feeSettings: Record<string, number>;
+  refreshFeeSettings: () => Promise<void>;
+
+  distanceMatrix: DistanceMatrix[];
+  getDistance: (fromVillage: string, toVillage: string) => number;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-// Distance mapping between villages (in km)
-const DISTANCE_MAP: Record<Village, Record<Village, number>> = {
-  "Desa Air Dua": {
-    "Desa Air Dua": 0,
-    "Desa Balai Riam (Pusat Kecamatan)": 6,
-    "Desa Bangun Jaya": 14,
-    "Desa Bukit Sungkai": 16,
-    "Desa Jihing (Jihing Janga area)": 18,
-    "Desa Lupu Peruca": 15,
-    "Desa Pempaning": 14,
-    "Desa Sekuningan Baru": 17,
-  },
-  "Desa Balai Riam (Pusat Kecamatan)": {
-    "Desa Air Dua": 6,
-    "Desa Balai Riam (Pusat Kecamatan)": 0,
-    "Desa Bangun Jaya": 7.8,
-    "Desa Bukit Sungkai": 10,
-    "Desa Jihing (Jihing Janga area)": 12,
-    "Desa Lupu Peruca": 9,
-    "Desa Pempaning": 8,
-    "Desa Sekuningan Baru": 11,
-  },
-  "Desa Bangun Jaya": {
-    "Desa Air Dua": 14,
-    "Desa Balai Riam (Pusat Kecamatan)": 7.8,
-    "Desa Bangun Jaya": 0,
-    "Desa Bukit Sungkai": 12,
-    "Desa Jihing (Jihing Janga area)": 15,
-    "Desa Lupu Peruca": 16,
-    "Desa Pempaning": 10,
-    "Desa Sekuningan Baru": 18,
-  },
-  "Desa Bukit Sungkai": {
-    "Desa Air Dua": 16,
-    "Desa Balai Riam (Pusat Kecamatan)": 10,
-    "Desa Bangun Jaya": 12,
-    "Desa Bukit Sungkai": 0,
-    "Desa Jihing (Jihing Janga area)": 10,
-    "Desa Lupu Peruca": 19,
-    "Desa Pempaning": 18,
-    "Desa Sekuningan Baru": 21,
-  },
-  "Desa Jihing (Jihing Janga area)": {
-    "Desa Air Dua": 18,
-    "Desa Balai Riam (Pusat Kecamatan)": 12,
-    "Desa Bangun Jaya": 15,
-    "Desa Bukit Sungkai": 10,
-    "Desa Jihing (Jihing Janga area)": 0,
-    "Desa Lupu Peruca": 21,
-    "Desa Pempaning": 20,
-    "Desa Sekuningan Baru": 13,
-  },
-  "Desa Lupu Peruca": {
-    "Desa Air Dua": 15,
-    "Desa Balai Riam (Pusat Kecamatan)": 9,
-    "Desa Bangun Jaya": 16,
-    "Desa Bukit Sungkai": 19,
-    "Desa Jihing (Jihing Janga area)": 21,
-    "Desa Lupu Peruca": 0,
-    "Desa Pempaning": 17,
-    "Desa Sekuningan Baru": 20,
-  },
-  "Desa Pempaning": {
-    "Desa Air Dua": 14,
-    "Desa Balai Riam (Pusat Kecamatan)": 8,
-    "Desa Bangun Jaya": 10,
-    "Desa Bukit Sungkai": 18,
-    "Desa Jihing (Jihing Janga area)": 20,
-    "Desa Lupu Peruca": 17,
-    "Desa Pempaning": 0,
-    "Desa Sekuningan Baru": 19,
-  },
-  "Desa Sekuningan Baru": {
-    "Desa Air Dua": 17,
-    "Desa Balai Riam (Pusat Kecamatan)": 11,
-    "Desa Bangun Jaya": 18,
-    "Desa Bukit Sungkai": 21,
-    "Desa Jihing (Jihing Janga area)": 13,
-    "Desa Lupu Peruca": 20,
-    "Desa Pempaning": 19,
-    "Desa Sekuningan Baru": 0,
-  },
-};
-
 export function DataProvider({ children }: { children: ReactNode }) {
-  // Initialize outlets from localStorage or use defaults
-  const [outlets, setOutlets] = useState<Outlet[]>(() => {
-    const saved = localStorage.getItem("sianter_outlets");
-    if (saved) {
-      return JSON.parse(saved);
-    }
-    // Default outlets
-    return [
-      {
-        id: "outlet1",
-        name: "Warung Makan Bu Siti",
-        village: "Desa Balai Riam (Pusat Kecamatan)" as Village,
-        category: "food" as const,
-        menuCount: 12,
-      },
-      {
-        id: "outlet2",
-        name: "Kedai Kopi Pak Budi",
-        village: "Desa Balai Riam (Pusat Kecamatan)" as Village,
-        category: "drink" as const,
-        menuCount: 8,
-      },
-      {
-        id: "outlet3",
-        name: "Ayam Geprek Mantap",
-        village: "Desa Bangun Jaya" as Village,
-        category: "food" as const,
-        menuCount: 10,
-      },
-      {
-        id: "outlet4",
-        name: "Toko Sembako Maju",
-        village: "Desa Air Dua" as Village,
-        category: "package" as const,
-        menuCount: 15,
-      },
-    ];
-  });
+  const [outlets, setOutlets] = useState<Outlet[]>([]);
+  const [products, setProducts] = useState<ProductWithDetails[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [drivers, setDrivers] = useState<Profile[]>([]);
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [feeSettings, setFeeSettings] = useState<Record<string, number>>({});
+  const [distanceMatrix, setDistanceMatrix] = useState<DistanceMatrix[]>([]);
 
-  // Initialize products from localStorage
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem("sianter_products");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [loadingOutlets, setLoadingOutlets] = useState(true);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [loadingDrivers, setLoadingDrivers] = useState(true);
 
-  // Initialize orders from localStorage
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem("sianter_orders");
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Fetch outlets
+  const refreshOutlets = useCallback(async () => {
+    setLoadingOutlets(true);
+    const { data } = await supabase.from("outlets").select("*").order("created_at");
+    setOutlets(data || []);
+    setLoadingOutlets(false);
+  }, []);
 
-  // Initialize drivers from localStorage or use defaults
-  const [drivers, setDrivers] = useState<Driver[]>(() => {
-    const saved = localStorage.getItem("sianter_drivers");
-    if (saved) {
-      return JSON.parse(saved);
-    }
-    // Default drivers with hashed passwords (for demo)
-    return [
-      {
-        id: "driver1",
-        name: "Pak Ahmad",
-        phone: "0812-3456-7890",
-        username: "driver_ahmad",
-        passwordHash: "hash_1lv3nlh", // password: "demo123"
-        isActive: true,
-        status: "offline" as const,
-        ordersToday: 0,
-        weeklyOrders: 0,
-        totalEarningToday: 0,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: "driver2",
-        name: "Pak Joko",
-        phone: "0813-4567-8901",
-        username: "driver_joko",
-        passwordHash: "hash_1lv3nlh", // password: "demo123"
-        isActive: true,
-        status: "offline" as const,
-        ordersToday: 0,
-        weeklyOrders: 0,
-        totalEarningToday: 0,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: "driver3",
-        name: "Pak Budi",
-        phone: "0814-5678-9012",
-        username: "driver_budi",
-        passwordHash: "hash_1lv3nlh", // password: "demo123"
-        isActive: true,
-        status: "offline" as const,
-        ordersToday: 0,
-        weeklyOrders: 0,
-        totalEarningToday: 0,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-  });
+  // Fetch products with variants and extras
+  const refreshProducts = useCallback(async () => {
+    setLoadingProducts(true);
+    const { data: prods } = await supabase.from("products").select("*").order("created_at");
+    const { data: variants } = await supabase.from("product_variants").select("*");
+    const { data: extras } = await supabase.from("product_extras").select("*");
 
-  // Save to localStorage when data changes
+    const productsWithDetails: ProductWithDetails[] = (prods || []).map((p) => ({
+      ...p,
+      variants: (variants || []).filter((v) => v.product_id === p.id),
+      extras: (extras || []).filter((e) => e.product_id === p.id),
+    }));
+
+    setProducts(productsWithDetails);
+    setLoadingProducts(false);
+  }, []);
+
+  // Fetch orders
+  const refreshOrders = useCallback(async () => {
+    setLoadingOrders(true);
+    const { data } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
+    setOrders(data || []);
+    setLoadingOrders(false);
+  }, []);
+
+  // Fetch drivers (profiles with role=driver)
+  const refreshDrivers = useCallback(async () => {
+    setLoadingDrivers(true);
+    const { data } = await supabase.from("profiles").select("*").eq("role", "driver").order("created_at");
+    setDrivers(data || []);
+    setLoadingDrivers(false);
+  }, []);
+
+  // Fetch payment accounts
+  const refreshPaymentAccounts = useCallback(async () => {
+    const { data } = await supabase.from("payment_accounts").select("*").eq("is_active", true);
+    setPaymentAccounts(data || []);
+  }, []);
+
+  // Fetch fee settings
+  const refreshFeeSettings = useCallback(async () => {
+    const { data } = await supabase.from("fee_settings").select("*");
+    const settings: Record<string, number> = {};
+    (data || []).forEach((s) => {
+      settings[s.key] = s.value;
+    });
+    setFeeSettings(settings);
+  }, []);
+
+  // Fetch distance matrix
+  const refreshDistanceMatrix = useCallback(async () => {
+    const { data } = await supabase.from("distance_matrix").select("*");
+    setDistanceMatrix(data || []);
+  }, []);
+
+  // Initial load
   useEffect(() => {
-    localStorage.setItem("sianter_outlets", JSON.stringify(outlets));
-  }, [outlets]);
+    refreshOutlets();
+    refreshProducts();
+    refreshOrders();
+    refreshDrivers();
+    refreshPaymentAccounts();
+    refreshFeeSettings();
+    refreshDistanceMatrix();
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem("sianter_products", JSON.stringify(products));
+  // Outlet CRUD
+  const addOutlet = useCallback(async (outlet: TablesInsert<"outlets">) => {
+    const { error } = await supabase.from("outlets").insert(outlet);
+    if (error) throw error;
+    await refreshOutlets();
+  }, [refreshOutlets]);
+
+  const updateOutlet = useCallback(async (id: string, outlet: Partial<TablesInsert<"outlets">>) => {
+    const { error } = await supabase.from("outlets").update(outlet).eq("id", id);
+    if (error) throw error;
+    await refreshOutlets();
+  }, [refreshOutlets]);
+
+  const deleteOutlet = useCallback(async (id: string) => {
+    const { error } = await supabase.from("outlets").delete().eq("id", id);
+    if (error) throw error;
+    await refreshOutlets();
+  }, [refreshOutlets]);
+
+  // Product CRUD
+  const addProduct = useCallback(async (
+    product: TablesInsert<"products">,
+    variants: TablesInsert<"product_variants">[],
+    extras: TablesInsert<"product_extras">[]
+  ) => {
+    const { data: newProduct, error } = await supabase
+      .from("products")
+      .insert(product)
+      .select()
+      .single();
+    if (error) throw error;
+    if (!newProduct) throw new Error("Failed to create product");
+
+    if (variants.length > 0) {
+      const { error: vError } = await supabase
+        .from("product_variants")
+        .insert(variants.map((v) => ({ ...v, product_id: newProduct.id })));
+      if (vError) throw vError;
+    }
+
+    if (extras.length > 0) {
+      const { error: eError } = await supabase
+        .from("product_extras")
+        .insert(extras.map((e) => ({ ...e, product_id: newProduct.id })));
+      if (eError) throw eError;
+    }
+
+    await refreshProducts();
+  }, [refreshProducts]);
+
+  const updateProduct = useCallback(async (id: string, product: Partial<TablesInsert<"products">>) => {
+    const { error } = await supabase.from("products").update(product).eq("id", id);
+    if (error) throw error;
+    await refreshProducts();
+  }, [refreshProducts]);
+
+  const deleteProduct = useCallback(async (id: string) => {
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (error) throw error;
+    await refreshProducts();
+  }, [refreshProducts]);
+
+  const getProductsByOutlet = useCallback((outletId: string) => {
+    return products.filter((p) => p.outlet_id === outletId);
   }, [products]);
 
-  useEffect(() => {
-    localStorage.setItem("sianter_orders", JSON.stringify(orders));
-  }, [orders]);
+  // Order CRUD
+  const addOrder = useCallback(async (
+    order: TablesInsert<"orders">,
+    items: TablesInsert<"order_items">[]
+  ): Promise<string> => {
+    const { data: newOrder, error } = await supabase
+      .from("orders")
+      .insert(order)
+      .select()
+      .single();
+    if (error) throw error;
+    if (!newOrder) throw new Error("Failed to create order");
 
-  useEffect(() => {
-    localStorage.setItem("sianter_drivers", JSON.stringify(drivers));
-  }, [drivers]);
-
-  // Outlet functions
-  const addOutlet = (outlet: Omit<Outlet, "id">) => {
-    const newOutlet: Outlet = {
-      ...outlet,
-      id: `outlet_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-    };
-    setOutlets([...outlets, newOutlet]);
-  };
-
-  const updateOutlet = (id: string, updates: Partial<Outlet>) => {
-    setOutlets(outlets.map((o) => (o.id === id ? { ...o, ...updates } : o)));
-  };
-
-  const deleteOutlet = (id: string) => {
-    setOutlets(outlets.filter((o) => o.id !== id));
-  };
-
-  // Product functions
-  const addProduct = (product: Omit<Product, "id">) => {
-    const newProduct: Product = {
-      ...product,
-      id: `product_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-    };
-    setProducts([...products, newProduct]);
-  };
-
-  const updateProduct = (id: string, updates: Partial<Product>) => {
-    setProducts(products.map((p) => (p.id === id ? { ...p, ...updates } : p)));
-  };
-
-  const deleteProduct = (id: string) => {
-    setProducts(products.filter((p) => p.id !== id));
-  };
-
-  const getProductsByOutlet = (outletId: string) => {
-    return products.filter((p) => p.outletId === outletId);
-  };
-
-  // Order functions
-  const addOrder = (order: Omit<Order, "id">): string => {
-    const newOrder: Order = {
-      ...order,
-      id: Math.random().toString(36).substring(2, 9).toUpperCase(),
-    };
-    setOrders([newOrder, ...orders]);
-    return newOrder.id;
-  };
-
-  const updateOrderStatus = (orderId: string, status: OrderStatus) => {
-    setOrders(
-      orders.map((o) => (o.id === orderId ? { ...o, status } : o))
-    );
-  };
-
-  const updateOrderPayment = (orderId: string, paymentData: { paymentProofUrl?: string; paymentStatus?: Order["paymentStatus"] }) => {
-    setOrders(
-      orders.map((o) =>
-        o.id === orderId
-          ? { ...o, ...paymentData }
-          : o
-      )
-    );
-  };
-
-  const updateOrder = (orderId: string, updates: Partial<Order>) => {
-    setOrders(
-      orders.map((o) =>
-        o.id === orderId
-          ? { ...o, ...updates }
-          : o
-      )
-    );
-  };
-
-  const assignDriver = (orderId: string, driverId: string, driverName: string) => {
-    // Check if order is already assigned
-    const order = orders.find((o) => o.id === orderId);
-    if (order?.driverId && order.driverId !== driverId) {
-      throw new Error("Order sudah di-assign ke driver lain!");
+    if (items.length > 0) {
+      const { error: iError } = await supabase
+        .from("order_items")
+        .insert(items.map((i) => ({ ...i, order_id: newOrder.id })));
+      if (iError) throw iError;
     }
 
-    setOrders(
-      orders.map((o) =>
-        o.id === orderId
-          ? { ...o, driverId, driverName, status: "processing" as OrderStatus }
-          : o
-      )
-    );
-  };
+    // Add status history
+    await supabase.from("order_status_history").insert({
+      order_id: newOrder.id,
+      status: "pending",
+      notes: "Pesanan dibuat",
+    });
 
-  // Driver functions
-  const addDriver = (driver: Omit<Driver, "id" | "ordersToday" | "weeklyOrders" | "totalEarningToday" | "createdAt" | "status">): Driver => {
-    const newDriver: Driver = {
-      ...driver,
-      id: `driver_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-      ordersToday: 0,
-      weeklyOrders: 0,
-      totalEarningToday: 0,
-      createdAt: new Date().toISOString(),
-      status: "offline" as const,
-    };
-    setDrivers([...drivers, newDriver]);
-    return newDriver;
-  };
+    await refreshOrders();
+    return newOrder.id;
+  }, [refreshOrders]);
 
-  const updateDriver = (id: string, driver: Partial<Driver>) => {
-    setDrivers(drivers.map((d) => (d.id === id ? { ...d, ...driver } : d)));
-  };
+  const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus, changedBy?: string) => {
+    const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
+    if (error) throw error;
 
-  const deactivateDriver = (id: string) => {
-    setDrivers(drivers.map((d) => (d.id === id ? { ...d, isActive: false } : d)));
-  };
+    await supabase.from("order_status_history").insert({
+      order_id: orderId,
+      status,
+      changed_by: changedBy || null,
+    });
 
-  const resetDriverCredentials = (id: string, newUsername: string, newPasswordHash: string) => {
-    setDrivers(drivers.map((d) => (d.id === id ? { ...d, username: newUsername, passwordHash: newPasswordHash } : d)));
-  };
+    await refreshOrders();
+  }, [refreshOrders]);
 
-  const updateDriverSession = (id: string, sessionId: string) => {
-    setDrivers(drivers.map((d) => (d.id === id ? { ...d, currentSessionId: sessionId } : d)));
-  };
+  const updateOrderPayment = useCallback(async (orderId: string, paymentData: { payment_proof_url?: string; payment_status?: string }) => {
+    const { error } = await supabase.from("orders").update(paymentData).eq("id", orderId);
+    if (error) throw error;
+    await refreshOrders();
+  }, [refreshOrders]);
 
-  const getDriverByUsername = (username: string) => {
-    return drivers.find((d) => d.username === username);
-  };
+  const updateOrder = useCallback(async (orderId: string, updates: Partial<TablesInsert<"orders">>) => {
+    const { error } = await supabase.from("orders").update(updates).eq("id", orderId);
+    if (error) throw error;
+    await refreshOrders();
+  }, [refreshOrders]);
 
-  const updateDriverStats = (driverId: string, stats: Partial<Driver>) => {
-    setDrivers(drivers.map((d) => (d.id === driverId ? { ...d, ...stats } : d)));
-  };
+  const assignDriver = useCallback(async (orderId: string, driverId: string, driverName: string) => {
+    const { error } = await supabase
+      .from("orders")
+      .update({ driver_id: driverId, driver_name: driverName, status: "processing" })
+      .eq("id", orderId);
+    if (error) throw error;
+
+    await supabase.from("order_status_history").insert({
+      order_id: orderId,
+      status: "processing",
+      changed_by: driverId,
+      notes: `Driver ${driverName} di-assign`,
+    });
+
+    await refreshOrders();
+  }, [refreshOrders]);
+
+  // Driver CRUD
+  const addDriver = useCallback(async (name: string, phone: string, password: string) => {
+    // Create auth user with admin API
+    const email = `driver_${name.toLowerCase().replace(/[^a-z0-9]/g, "")}@siantar.id`;
+    
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          phone,
+          role: "driver",
+        },
+      },
+    });
+
+    if (error) throw error;
+    if (!data.user) throw new Error("Failed to create driver user");
+
+    await refreshDrivers();
+  }, [refreshDrivers]);
+
+  const updateDriver = useCallback(async (id: string, driver: Partial<Profile>) => {
+    const { error } = await supabase.from("profiles").update(driver).eq("id", id);
+    if (error) throw error;
+    await refreshDrivers();
+  }, [refreshDrivers]);
+
+  const deactivateDriver = useCallback(async (id: string) => {
+    const { error } = await supabase.from("profiles").update({ is_active: false }).eq("id", id);
+    if (error) throw error;
+    await refreshDrivers();
+  }, [refreshDrivers]);
 
   // Distance calculation
-  const getDistance = (villageA: Village, villageB: Village): number => {
-    return DISTANCE_MAP[villageA]?.[villageB] ?? 0;
-  };
+  const getDistance = useCallback((fromVillage: string, toVillage: string): number => {
+    const entry = distanceMatrix.find(
+      (d) => d.from_village === fromVillage && d.to_village === toVillage
+    );
+    return entry?.distance_km ?? 0;
+  }, [distanceMatrix]);
 
   return (
     <DataContext.Provider
@@ -519,25 +362,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
         addOutlet,
         updateOutlet,
         deleteOutlet,
+        loadingOutlets,
         products,
         addProduct,
         updateProduct,
         deleteProduct,
         getProductsByOutlet,
+        refreshProducts,
+        loadingProducts,
         orders,
         addOrder,
         updateOrderStatus,
         updateOrderPayment,
         updateOrder,
         assignDriver,
+        refreshOrders,
+        loadingOrders,
         drivers,
         addDriver,
         updateDriver,
         deactivateDriver,
-        resetDriverCredentials,
-        updateDriverSession,
-        getDriverByUsername,
-        updateDriverStats,
+        refreshDrivers,
+        loadingDrivers,
+        paymentAccounts,
+        refreshPaymentAccounts,
+        feeSettings,
+        refreshFeeSettings,
+        distanceMatrix,
         getDistance,
       }}
     >

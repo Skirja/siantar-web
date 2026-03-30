@@ -1,14 +1,15 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, Copy, Check, Upload, MessageCircle, X, AlertCircle, CreditCard, Clock } from "lucide-react";
+import { ArrowLeft, Copy, Check, Upload, MessageCircle, X, AlertCircle, CreditCard, Clock, Loader2 } from "lucide-react";
 import { useData } from "../../contexts/DataContext";
 import { formatCurrency } from "../../utils/financeCalculations";
-import { Logo } from "../../components/Logo";
+import { uploadFile } from "../../../lib/supabase";
+import { toast } from "sonner";
 
 export function PaymentInstruction() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const { orders, updateOrderPayment } = useData();
+  const { orders, updateOrderPayment, paymentAccounts } = useData();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const order = orders.find((o) => o.id === orderId);
@@ -16,6 +17,8 @@ export function PaymentInstruction() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   if (!order) {
     return (
@@ -33,24 +36,9 @@ export function PaymentInstruction() {
     );
   }
 
-  // Payment account details with correct DANA number
-  const paymentDetails = {
-    BRI: {
-      accountNumber: "0123-4567-8901-234",
-      accountName: "Wahid Syachviar",
-      bank: "Bank BRI",
-      icon: "🏦",
-    },
-    DANA: {
-      accountNumber: "0895332317179",
-      accountName: "Wahid Syachviar",
-      bank: "DANA E-Wallet",
-      icon: "💳",
-    },
-  };
-
-  const currentPaymentDetail = order.paymentProvider
-    ? paymentDetails[order.paymentProvider]
+  // Get payment account from paymentAccounts matching order's payment_provider
+  const currentPaymentAccount = order.payment_provider
+    ? paymentAccounts.find((a) => a.provider === order.payment_provider && a.is_active)
     : null;
 
   const handleCopy = (text: string, field: string) => {
@@ -64,15 +52,17 @@ export function PaymentInstruction() {
     if (file) {
       // Validate file type
       if (!file.type.startsWith("image/")) {
-        alert("Mohon pilih file gambar (JPG/PNG)");
+        toast.error("Mohon pilih file gambar (JPG/PNG)");
         return;
       }
 
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert("Ukuran file maksimal 5MB");
+        toast.error("Ukuran file maksimal 5MB");
         return;
       }
+
+      setSelectedFile(file);
 
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -83,26 +73,38 @@ export function PaymentInstruction() {
     }
   };
 
-  const handleUploadProof = () => {
-    if (!previewImage) {
-      alert("Mohon pilih gambar bukti transfer");
+  const handleUploadProof = async () => {
+    if (!selectedFile || !previewImage) {
+      toast.error("Mohon pilih gambar bukti transfer");
       return;
     }
 
-    // Update order with payment proof
-    updateOrderPayment(order.id, {
-      paymentProofUrl: previewImage,
-      paymentStatus: "waiting_confirmation",
-    });
+    setIsUploading(true);
 
-    setUploadedImage(previewImage);
-    setPreviewImage(null);
-    alert("Bukti pembayaran berhasil diupload! Menunggu konfirmasi admin.");
+    try {
+      const path = `${order.id}/${Date.now()}-${selectedFile.name}`;
+      const url = await uploadFile("payment-proofs", path, selectedFile);
+
+      await updateOrderPayment(order.id, {
+        payment_proof_url: url,
+        payment_status: "waiting_confirmation",
+      });
+
+      setUploadedImage(url);
+      setPreviewImage(null);
+      setSelectedFile(null);
+      toast.success("Bukti pembayaran berhasil diupload! Menunggu konfirmasi admin.");
+    } catch (error) {
+      console.error("Upload failed:", error);
+      toast.error("Gagal mengupload bukti pembayaran. Silakan coba lagi.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleWhatsApp = () => {
-    const message = `Halo, saya ingin konfirmasi pembayaran:\n\nOrder ID: ${order.id}\nNama: ${order.customerName}\nJumlah Transfer: ${formatCurrency(order.finalPaymentAmount || order.total)}\n\nTerima kasih!`;
-    const phoneNumber = "6281234567890"; // Replace with actual admin WhatsApp number
+    const message = `Halo, saya ingin konfirmasi pembayaran:\n\nOrder ID: ${order.id}\nNama: ${order.customer_name}\nJumlah Transfer: ${formatCurrency(order.final_payment_amount || order.total)}\n\nTerima kasih!`;
+    const phoneNumber = "6281234567890";
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, "_blank");
   };
@@ -110,6 +112,17 @@ export function PaymentInstruction() {
   const handleContinueToTracking = () => {
     navigate(`/home/tracking/${order.id}`);
   };
+
+  // Get provider icon and label from account data
+  const getProviderInfo = (provider: string) => {
+    if (provider === "BRI") return { icon: "🏦", label: "Bank BRI" };
+    if (provider === "DANA") return { icon: "💳", label: "DANA E-Wallet" };
+    return { icon: "💰", label: provider };
+  };
+
+  const providerInfo = currentPaymentAccount
+    ? getProviderInfo(currentPaymentAccount.provider)
+    : null;
 
   return (
     <div className="pb-20 md:pb-8 min-h-screen bg-gradient-to-br from-orange-50 via-white to-gray-50">
@@ -136,7 +149,7 @@ export function PaymentInstruction() {
         </div>
 
         {/* Payment Status - Show if already uploaded */}
-        {order.paymentProofUrl && order.paymentStatus === "waiting_confirmation" && (
+        {order.payment_proof_url && order.payment_status === "waiting_confirmation" && (
           <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-6 mb-6 shadow-sm">
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0">
@@ -157,14 +170,14 @@ export function PaymentInstruction() {
         {/* Main Payment Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden mb-6">
           {/* Payment Method Header */}
-          {currentPaymentDetail && (
+          {providerInfo && (
             <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-5">
               <div className="flex items-center gap-3">
-                <span className="text-4xl">{currentPaymentDetail.icon}</span>
+                <span className="text-4xl">{providerInfo.icon}</span>
                 <div>
                   <p className="text-orange-100 text-sm font-medium">Transfer via</p>
                   <p className="text-white text-xl font-bold">
-                    {currentPaymentDetail.bank}
+                    {providerInfo.label}
                   </p>
                 </div>
               </div>
@@ -174,7 +187,7 @@ export function PaymentInstruction() {
           {/* Payment Details */}
           <div className="p-6 space-y-5">
             {/* Account Number */}
-            {currentPaymentDetail && (
+            {currentPaymentAccount && (
               <>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -183,14 +196,14 @@ export function PaymentInstruction() {
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      value={currentPaymentDetail.accountNumber}
+                      value={currentPaymentAccount.account_number}
                       readOnly
                       className="flex-1 px-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-xl font-bold text-gray-900 text-lg tracking-wide"
                     />
                     <button
                       onClick={() =>
                         handleCopy(
-                          currentPaymentDetail.accountNumber.replace(/-/g, ""),
+                          currentPaymentAccount.account_number.replace(/-/g, ""),
                           "accountNumber"
                         )
                       }
@@ -212,14 +225,14 @@ export function PaymentInstruction() {
                   </label>
                   <input
                     type="text"
-                    value={currentPaymentDetail.accountName}
+                    value={currentPaymentAccount.account_name}
                     readOnly
                     className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-xl font-semibold text-gray-900"
                   />
                 </div>
 
                 {/* Unique Code Notice */}
-                {order.uniquePaymentCode && (
+                {order.unique_payment_code && (
                   <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4">
                     <div className="flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
@@ -228,7 +241,7 @@ export function PaymentInstruction() {
                           Sertakan 3 digit kode unik ini di transfer Anda
                         </p>
                         <p className="text-xs text-orange-700">
-                          Kode unik: <span className="font-bold text-lg">{order.uniquePaymentCode}</span>
+                          Kode unik: <span className="font-bold text-lg">{order.unique_payment_code}</span>
                         </p>
                       </div>
                     </div>
@@ -242,12 +255,12 @@ export function PaymentInstruction() {
                   </label>
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div className="text-white text-4xl font-bold tracking-tight">
-                      {formatCurrency(order.finalPaymentAmount || order.total)}
+                      {formatCurrency(order.final_payment_amount || order.total)}
                     </div>
                     <button
                       onClick={() =>
                         handleCopy(
-                          (order.finalPaymentAmount || order.total).toString(),
+                          (order.final_payment_amount || order.total).toString(),
                           "amount"
                         )
                       }
@@ -260,9 +273,9 @@ export function PaymentInstruction() {
                       )}
                     </button>
                   </div>
-                  {order.uniquePaymentCode && (
+                  {order.unique_payment_code && (
                     <p className="text-orange-100 text-xs">
-                      Sudah termasuk kode unik +{order.uniquePaymentCode}
+                      Sudah termasuk kode unik +{order.unique_payment_code}
                     </p>
                   )}
                 </div>
@@ -275,7 +288,7 @@ export function PaymentInstruction() {
                 <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-bold text-yellow-900 mb-2">
-                    ⚠️ Instruksi Penting:
+                    Instruksi Penting:
                   </p>
                   <ul className="text-sm text-yellow-800 space-y-1.5 list-none">
                     <li className="flex items-start gap-2">
@@ -305,18 +318,19 @@ export function PaymentInstruction() {
 
           {/* Upload Section */}
           <div className="mb-5">
-            {uploadedImage || order.paymentProofUrl ? (
+            {uploadedImage || order.payment_proof_url ? (
               <div className="space-y-4">
                 <div className="relative rounded-xl overflow-hidden border-2 border-gray-200">
                   <img
-                    src={uploadedImage || order.paymentProofUrl}
+                    src={uploadedImage || order.payment_proof_url || ""}
                     alt="Payment proof"
                     className="w-full h-72 object-contain bg-gray-50"
                   />
-                  {!order.paymentProofUrl && (
+                  {!order.payment_proof_url && (
                     <button
                       onClick={() => {
                         setUploadedImage(null);
+                        setSelectedFile(null);
                         if (fileInputRef.current) {
                           fileInputRef.current.value = "";
                         }
@@ -327,13 +341,13 @@ export function PaymentInstruction() {
                     </button>
                   )}
                 </div>
-                {order.paymentProofUrl && (
+                {order.payment_proof_url && (
                   <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
                     <div className="flex items-center gap-3">
                       <Check className="w-6 h-6 text-green-600" />
                       <div>
                         <p className="font-bold text-green-900">Bukti sudah diupload</p>
-                        {order.paymentStatus === "waiting_confirmation" && (
+                        {order.payment_status === "waiting_confirmation" && (
                           <p className="text-sm text-green-700">
                             Menunggu konfirmasi admin
                           </p>
@@ -354,6 +368,7 @@ export function PaymentInstruction() {
                   <button
                     onClick={() => {
                       setPreviewImage(null);
+                      setSelectedFile(null);
                       if (fileInputRef.current) {
                         fileInputRef.current.value = "";
                       }
@@ -365,9 +380,17 @@ export function PaymentInstruction() {
                 </div>
                 <button
                   onClick={handleUploadProof}
-                  className="w-full py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-bold text-lg shadow-lg hover:shadow-xl"
+                  disabled={isUploading}
+                  className="w-full py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-bold text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  ✓ Kirim Bukti
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Mengupload...
+                    </>
+                  ) : (
+                    "✓ Kirim Bukti"
+                  )}
                 </button>
               </div>
             ) : (
@@ -405,7 +428,7 @@ export function PaymentInstruction() {
           </button>
 
           {/* Continue to Tracking */}
-          {(uploadedImage || order.paymentProofUrl) && (
+          {(uploadedImage || order.payment_proof_url) && (
             <button
               onClick={handleContinueToTracking}
               className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-bold text-lg shadow-lg hover:shadow-xl"

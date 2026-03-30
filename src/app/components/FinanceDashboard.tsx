@@ -2,19 +2,30 @@ import { useState, useMemo } from "react";
 import { Download, TrendingUp, DollarSign, Users, Calendar, FileSpreadsheet } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useData } from "../contexts/DataContext";
-import { calculateOrderFinance, formatCurrency } from "../utils/financeCalculations";
+import { calculateOrderFinance, formatCurrency, getDefaultFeeSettings, type FeeSettings } from "../utils/financeCalculations";
 import * as XLSX from "xlsx";
+import { toast } from "sonner";
 
 type TimeFilter = "today" | "week" | "month" | "custom";
 
 export function FinanceDashboard() {
-  const { orders, drivers } = useData();
+  const { orders, outlets, drivers, feeSettings } = useData();
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("today");
+  const [selectedOutlet, setSelectedOutlet] = useState<string>("all");
   const [selectedDriver, setSelectedDriver] = useState<string>("all");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
 
-  // Filter orders based on time and driver selection
+  const fees: FeeSettings = {
+    cost_per_km: feeSettings.cost_per_km ?? getDefaultFeeSettings().cost_per_km,
+    service_fee: feeSettings.service_fee ?? getDefaultFeeSettings().service_fee,
+    admin_fee: feeSettings.admin_fee ?? getDefaultFeeSettings().admin_fee,
+    driver_share_pct: feeSettings.driver_share_pct ?? getDefaultFeeSettings().driver_share_pct,
+    admin_share_pct: feeSettings.admin_share_pct ?? getDefaultFeeSettings().admin_share_pct,
+    min_distance_km: feeSettings.min_distance_km ?? getDefaultFeeSettings().min_distance_km,
+  };
+
+  // Filter orders based on time, outlet, and driver selection
   const filteredOrders = useMemo(() => {
     const now = new Date();
     let filtered = orders;
@@ -22,42 +33,47 @@ export function FinanceDashboard() {
     // Time filtering
     if (timeFilter === "today") {
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      filtered = filtered.filter(o => new Date(o.timestamp) >= today);
+      filtered = filtered.filter(o => new Date(o.created_at) >= today);
     } else if (timeFilter === "week") {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      filtered = filtered.filter(o => new Date(o.timestamp) >= weekAgo);
+      filtered = filtered.filter(o => new Date(o.created_at) >= weekAgo);
     } else if (timeFilter === "month") {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      filtered = filtered.filter(o => new Date(o.timestamp) >= monthStart);
+      filtered = filtered.filter(o => new Date(o.created_at) >= monthStart);
     } else if (timeFilter === "custom" && customStartDate && customEndDate) {
       const start = new Date(customStartDate);
       const end = new Date(customEndDate);
       end.setHours(23, 59, 59, 999);
       filtered = filtered.filter(o => {
-        const orderDate = new Date(o.timestamp);
+        const orderDate = new Date(o.created_at);
         return orderDate >= start && orderDate <= end;
       });
     }
 
+    // Outlet filtering
+    if (selectedOutlet !== "all") {
+      filtered = filtered.filter(o => o.outlet_id === selectedOutlet);
+    }
+
     // Driver filtering
     if (selectedDriver !== "all") {
-      filtered = filtered.filter(o => o.driverId === selectedDriver);
+      filtered = filtered.filter(o => o.driver_id === selectedDriver);
     }
 
     return filtered;
-  }, [orders, timeFilter, selectedDriver, customStartDate, customEndDate]);
+  }, [orders, timeFilter, selectedOutlet, selectedDriver, customStartDate, customEndDate]);
 
   // Calculate financial metrics
   const metrics = useMemo(() => {
     const totalOrders = filteredOrders.length;
-    const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.total, 0);
-    const totalDeliveryFees = filteredOrders.reduce((sum, o) => sum + o.deliveryFee, 0);
-    
+    const totalRevenue = filteredOrders.reduce((sum, o) => sum + (o.total ?? 0), 0);
+    const totalDeliveryFees = filteredOrders.reduce((sum, o) => sum + (o.delivery_fee ?? 0), 0);
+
     let totalAdminProfit = 0;
     let totalDriverEarnings = 0;
 
     filteredOrders.forEach(order => {
-      const finance = calculateOrderFinance(order.subtotal, order.distance);
+      const finance = calculateOrderFinance(order.subtotal ?? 0, order.distance ?? 0, fees);
       totalAdminProfit += finance.adminProfit;
       totalDriverEarnings += finance.driverEarning;
     });
@@ -69,16 +85,16 @@ export function FinanceDashboard() {
       totalAdminProfit,
       totalDriverEarnings,
     };
-  }, [filteredOrders]);
+  }, [filteredOrders, fees]);
 
   // Prepare chart data - orders per day
   const ordersPerDay = useMemo(() => {
     const dayMap = new Map<string, { count: number; timestamp: number }>();
-    
+
     filteredOrders.forEach(order => {
-      const date = new Date(order.timestamp);
+      const date = new Date(order.created_at);
       const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      
+
       if (!dayMap.has(dayKey)) {
         dayMap.set(dayKey, { count: 0, timestamp: date.getTime() });
       }
@@ -86,17 +102,16 @@ export function FinanceDashboard() {
       current.count += 1;
     });
 
-    // Sort by timestamp and format for display
     return Array.from(dayMap.entries())
       .sort((a, b) => a[1].timestamp - b[1].timestamp)
-      .slice(-7) // Last 7 days
+      .slice(-7)
       .map(([dayKey, data]) => {
         const date = new Date(data.timestamp);
         const displayDay = date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-        return { 
-          dayKey, // Unique key for React
-          day: displayDay, // Display label
-          count: data.count 
+        return {
+          dayKey,
+          day: displayDay,
+          count: data.count
         };
       });
   }, [filteredOrders]);
@@ -104,12 +119,12 @@ export function FinanceDashboard() {
   // Prepare chart data - income over time
   const incomeOverTime = useMemo(() => {
     const dayMap = new Map<string, { admin: number; driver: number; timestamp: number }>();
-    
+
     filteredOrders.forEach(order => {
-      const date = new Date(order.timestamp);
+      const date = new Date(order.created_at);
       const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      const finance = calculateOrderFinance(order.subtotal, order.distance);
-      
+      const finance = calculateOrderFinance(order.subtotal ?? 0, order.distance ?? 0, fees);
+
       if (!dayMap.has(dayKey)) {
         dayMap.set(dayKey, { admin: 0, driver: 0, timestamp: date.getTime() });
       }
@@ -118,59 +133,63 @@ export function FinanceDashboard() {
       current.driver += finance.driverEarning;
     });
 
-    // Sort by timestamp and format for display
     return Array.from(dayMap.entries())
       .sort((a, b) => a[1].timestamp - b[1].timestamp)
-      .slice(-7) // Last 7 days
+      .slice(-7)
       .map(([dayKey, data]) => {
         const date = new Date(data.timestamp);
         const displayDay = date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
         return {
-          dayKey, // Unique key for React
-          day: displayDay, // Display label
+          dayKey,
+          day: displayDay,
           admin: data.admin,
           driver: data.driver,
         };
       });
-  }, [filteredOrders]);
+  }, [filteredOrders, fees]);
 
   // Driver statistics
   const driverStats = useMemo(() => {
-    const stats = new Map();
-    
+    const stats = new Map<string, { name: string; orders: number; earnings: number; setoran: number }>();
+
     filteredOrders.forEach(order => {
-      if (!order.driverId || !order.driverName) return;
-      
-      const finance = calculateOrderFinance(order.subtotal, order.distance);
-      const current = stats.get(order.driverId) || {
-        name: order.driverName,
+      if (!order.driver_id || !order.driver_name) return;
+
+      const finance = calculateOrderFinance(order.subtotal ?? 0, order.distance ?? 0, fees);
+      const current = stats.get(order.driver_id) || {
+        name: order.driver_name,
         orders: 0,
         earnings: 0,
         setoran: 0,
       };
-      
-      stats.set(order.driverId, {
+
+      stats.set(order.driver_id, {
         ...current,
         orders: current.orders + 1,
         earnings: current.earnings + finance.driverEarning,
-        setoran: current.setoran + finance.driverEarning, // Driver keeps 80%, pays 20% to admin via store payment
+        setoran: current.setoran + finance.driverEarning,
       });
     });
 
     return Array.from(stats.values());
-  }, [filteredOrders]);
+  }, [filteredOrders, fees]);
 
   // Export to Excel
   const exportToExcel = () => {
-    const filterLabel = 
+    const filterLabel =
       timeFilter === "today" ? "Hari Ini" :
       timeFilter === "week" ? "Minggu Ini" :
       timeFilter === "month" ? "Bulan Ini" :
       `${customStartDate} sampai ${customEndDate}`;
 
+    const outletLabel = selectedOutlet !== "all"
+      ? outlets.find(o => o.id === selectedOutlet)?.name ?? "Unknown"
+      : "Semua Outlet";
+
     // Summary data
     const summaryData = [
       { Info: "Periode", Nilai: filterLabel },
+      { Info: "Outlet", Nilai: outletLabel },
       { Info: "Total Orders", Nilai: metrics.totalOrders },
       { Info: "Total Revenue", Nilai: formatCurrency(metrics.totalRevenue) },
       { Info: "Total Admin Profit", Nilai: formatCurrency(metrics.totalAdminProfit) },
@@ -181,31 +200,31 @@ export function FinanceDashboard() {
 
     // Order details
     const orderDetails = filteredOrders.map(order => {
-      const finance = calculateOrderFinance(order.subtotal, order.distance);
+      const finance = calculateOrderFinance(order.subtotal ?? 0, order.distance ?? 0, fees);
       return {
         "Order ID": order.id,
-        "Tanggal": new Date(order.timestamp).toLocaleString('id-ID'),
-        "Customer": order.customerName,
-        "Outlet": order.outlet.name,
-        "Driver": order.driverName || "-",
+        "Tanggal": new Date(order.created_at).toLocaleString('id-ID'),
+        "Customer": order.customer_name,
+        "Outlet": order.outlet_name,
+        "Driver": order.driver_name || "-",
         "Subtotal": order.subtotal,
-        "Service Fee": order.serviceFee,
-        "Delivery Fee": order.deliveryFee,
+        "Service Fee": order.service_fee,
+        "Delivery Fee": order.delivery_fee,
         "Total": order.total,
         "Admin Profit": finance.adminProfit,
         "Driver Earning": finance.driverEarning,
         "Status": order.status,
-        "Payment": order.paymentMethod === "cod" ? "COD" : `Transfer ${order.paymentProvider || ""}`,
+        "Payment": order.payment_method === "cod" ? "COD" : `Transfer ${order.payment_provider || ""}`,
       };
     });
 
     // Create workbook
     const wb = XLSX.utils.book_new();
-    
+
     // Summary sheet
     const wsSummary = XLSX.utils.json_to_sheet(summaryData, { skipHeader: true });
     XLSX.utils.book_append_sheet(wb, wsSummary, "Ringkasan");
-    
+
     // Orders sheet
     const wsOrders = XLSX.utils.json_to_sheet(orderDetails);
     XLSX.utils.book_append_sheet(wb, wsOrders, "Detail Orders");
@@ -225,6 +244,7 @@ export function FinanceDashboard() {
     // Download
     const fileName = `SiAnter_Finance_${filterLabel.replace(/\s/g, "_")}_${Date.now()}.xlsx`;
     XLSX.writeFile(wb, fileName);
+    toast.success("Laporan berhasil diexport ke Excel");
   };
 
   return (
@@ -242,8 +262,28 @@ export function FinanceDashboard() {
           </button>
         </div>
 
-        {/* Time Filter */}
+        {/* Filters */}
         <div className="space-y-4">
+          {/* Outlet Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Filter Outlet
+            </label>
+            <select
+              value={selectedOutlet}
+              onChange={(e) => setSelectedOutlet(e.target.value)}
+              className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+            >
+              <option value="all">Semua Outlet</option>
+              {outlets.map(outlet => (
+                <option key={outlet.id} value={outlet.id}>
+                  {outlet.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Time Filter */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Filter Waktu
@@ -350,7 +390,7 @@ export function FinanceDashboard() {
           </div>
           <div className="text-3xl font-bold">{metrics.totalOrders}</div>
           <div className="text-xs opacity-75 mt-1">
-            {timeFilter === "today" ? "Hari ini" : 
+            {timeFilter === "today" ? "Hari ini" :
              timeFilter === "week" ? "7 hari terakhir" :
              timeFilter === "month" ? "Bulan ini" : "Custom range"}
           </div>
@@ -432,7 +472,7 @@ export function FinanceDashboard() {
           <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
             <div>
               <div className="font-medium text-orange-900">Admin Profit</div>
-              <div className="text-sm text-orange-700">20% delivery fee + service fee (Rp 1.000/order)</div>
+              <div className="text-sm text-orange-700">20% delivery fee + service fee ({formatCurrency(fees.service_fee)}/order)</div>
             </div>
             <div className="text-xl font-bold text-orange-600">{formatCurrency(metrics.totalAdminProfit)}</div>
           </div>

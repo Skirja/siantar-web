@@ -1,36 +1,41 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, Plus, Edit2, Trash2, X, Upload, Image as ImageIcon, PackageX } from "lucide-react";
-import { useData, Product, ProductSize, ProductExtra } from "../../contexts/DataContext";
+import { ArrowLeft, Plus, Edit2, Trash2, X, Upload, Image as ImageIcon, PackageX, Loader2 } from "lucide-react";
+import { useData, ProductWithDetails, ProductVariant, ProductExtra } from "../../contexts/DataContext";
 import { formatCurrency } from "../../utils/financeCalculations";
+import { uploadFile } from "../../../lib/supabase";
+import { toast } from "sonner";
 
 export function OutletMenuManagement() {
   const { outletId } = useParams<{ outletId: string }>();
   const navigate = useNavigate();
-  const { outlets, products, addProduct, updateProduct, deleteProduct, getProductsByOutlet } = useData();
-  
+  const { outlets, addProduct, updateProduct, deleteProduct, getProductsByOutlet, loadingProducts } = useData();
+
   const outlet = outlets.find((o) => o.id === outletId);
   const outletProducts = outletId ? getProductsByOutlet(outletId) : [];
 
   const [showMenuModal, setShowMenuModal] = useState(false);
-  const [editingMenu, setEditingMenu] = useState<Product | null>(null);
-  
+  const [editingMenu, setEditingMenu] = useState<ProductWithDetails | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
   // Menu form state
   const [menuForm, setMenuForm] = useState({
     name: "",
     price: 0,
-    discountPrice: 0,
+    discount_price: 0,
     description: "",
     category: "Makanan" as "Makanan" | "Minuman",
-    sizes: [] as ProductSize[],
+    variants: [] as ProductVariant[],
     extras: [] as ProductExtra[],
-    imageUrl: "",
-    isAvailable: true,
+    image_url: "" as string | null,
+    is_available: true,
   });
 
-  // Size and extra forms
-  const [sizeForm, setSizeForm] = useState({ name: "", priceAdjustment: 0 });
-  const [showSizeInput, setShowSizeInput] = useState(false);
+  // Variant and extra forms
+  const [variantForm, setVariantForm] = useState({ name: "", price_adjustment: 0 });
+  const [showVariantInput, setShowVariantInput] = useState(false);
   const [extraForm, setExtraForm] = useState({ name: "", price: 0 });
   const [showExtraInput, setShowExtraInput] = useState(false);
 
@@ -55,110 +60,149 @@ export function OutletMenuManagement() {
     setMenuForm({
       name: "",
       price: 0,
-      discountPrice: 0,
+      discount_price: 0,
       description: "",
       category: "Makanan",
-      sizes: [],
+      variants: [],
       extras: [],
-      imageUrl: "",
-      isAvailable: true,
+      image_url: null,
+      is_available: true,
     });
     setShowMenuModal(true);
   };
 
-  const handleEditMenu = (menu: Product) => {
+  const handleEditMenu = (menu: ProductWithDetails) => {
     setEditingMenu(menu);
     setMenuForm({
       name: menu.name,
       price: menu.price,
-      discountPrice: menu.discountPrice || 0,
-      description: menu.description,
-      category: menu.category,
-      sizes: menu.sizes || [],
+      discount_price: menu.discount_price || 0,
+      description: menu.description || "",
+      category: menu.category as "Makanan" | "Minuman",
+      variants: menu.variants || [],
       extras: menu.extras || [],
-      imageUrl: menu.imageUrl || "",
-      isAvailable: menu.isAvailable,
+      image_url: menu.image_url,
+      is_available: menu.is_available,
     });
     setShowMenuModal(true);
   };
 
-  const handleSaveMenu = () => {
+  const handleSaveMenu = async () => {
     if (!menuForm.name || !menuForm.price || !outletId) {
-      alert("Mohon lengkapi nama dan harga menu!");
+      toast.error("Mohon lengkapi nama dan harga menu!");
       return;
     }
 
-    const menuData = {
-      outletId,
-      name: menuForm.name,
-      price: menuForm.price,
-      discountPrice: menuForm.discountPrice > 0 ? menuForm.discountPrice : undefined,
-      description: menuForm.description,
-      category: menuForm.category,
-      sizes: menuForm.sizes,
-      extras: menuForm.extras,
-      imageUrl: menuForm.imageUrl || undefined,
-      isAvailable: menuForm.isAvailable,
-    };
-
-    if (editingMenu) {
-      updateProduct(editingMenu.id, menuData);
-    } else {
-      addProduct(menuData);
-    }
-    setShowMenuModal(false);
-  };
-
-  const handleDeleteMenu = (id: string) => {
-    if (confirm("Yakin ingin menghapus menu ini?")) {
-      deleteProduct(id);
-    }
-  };
-
-  const handleToggleAvailability = (menu: Product) => {
-    updateProduct(menu.id, { isAvailable: !menu.isAvailable });
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Convert to base64 for simple storage (in production, upload to server/cloud)
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setMenuForm({ ...menuForm, imageUrl: reader.result as string });
+    setSaving(true);
+    try {
+      const productData = {
+        outlet_id: outletId,
+        name: menuForm.name,
+        price: menuForm.price,
+        discount_price: menuForm.discount_price > 0 ? menuForm.discount_price : null,
+        description: menuForm.description || null,
+        category: menuForm.category,
+        image_url: menuForm.image_url || null,
+        is_available: menuForm.is_available,
       };
-      reader.readAsDataURL(file);
+
+      const variantsData = menuForm.variants.map((v) => ({
+        name: v.name,
+        price_adjustment: v.price_adjustment,
+      }));
+
+      const extrasData = menuForm.extras.map((e) => ({
+        name: e.name,
+        price: e.price,
+      }));
+
+      if (editingMenu) {
+        await updateProduct(editingMenu.id, productData);
+        toast.success("Menu berhasil diperbarui!");
+      } else {
+        await addProduct(productData, variantsData, extrasData);
+        toast.success("Menu berhasil ditambahkan!");
+      }
+      setShowMenuModal(false);
+    } catch (error: any) {
+      toast.error(error.message || "Gagal menyimpan menu");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleAddSize = () => {
-    if (!sizeForm.name) return;
-    const newSize: ProductSize = {
-      id: `size_${Date.now()}`,
-      name: sizeForm.name,
-      priceAdjustment: sizeForm.priceAdjustment,
+  const handleDeleteMenu = async (id: string) => {
+    if (!confirm("Yakin ingin menghapus menu ini?")) return;
+    setDeleting(id);
+    try {
+      await deleteProduct(id);
+      toast.success("Menu berhasil dihapus!");
+    } catch (error: any) {
+      toast.error(error.message || "Gagal menghapus menu");
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const handleToggleAvailability = async (menu: ProductWithDetails) => {
+    try {
+      await updateProduct(menu.id, { is_available: !menu.is_available });
+      toast.success(menu.is_available ? "Menu ditandai habis" : "Menu ditandai tersedia");
+    } catch (error: any) {
+      toast.error(error.message || "Gagal mengubah ketersediaan");
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `products/${Date.now()}.${ext}`;
+      const url = await uploadFile("images", path, file);
+      setMenuForm({ ...menuForm, image_url: url });
+      toast.success("Gambar berhasil diupload!");
+    } catch (error: any) {
+      toast.error(error.message || "Gagal mengupload gambar");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleAddVariant = () => {
+    if (!variantForm.name) return;
+    const newVariant: ProductVariant = {
+      id: `temp_${Date.now()}`,
+      name: variantForm.name,
+      price_adjustment: variantForm.price_adjustment,
+      product_id: "",
+      created_at: new Date().toISOString(),
     };
     setMenuForm({
       ...menuForm,
-      sizes: [...menuForm.sizes, newSize],
+      variants: [...menuForm.variants, newVariant],
     });
-    setSizeForm({ name: "", priceAdjustment: 0 });
-    setShowSizeInput(false);
+    setVariantForm({ name: "", price_adjustment: 0 });
+    setShowVariantInput(false);
   };
 
-  const handleRemoveSize = (sizeId: string) => {
+  const handleRemoveVariant = (variantId: string) => {
     setMenuForm({
       ...menuForm,
-      sizes: menuForm.sizes.filter((s) => s.id !== sizeId),
+      variants: menuForm.variants.filter((v) => v.id !== variantId),
     });
   };
 
   const handleAddExtra = () => {
     if (!extraForm.name || !extraForm.price) return;
     const newExtra: ProductExtra = {
-      id: `extra_${Date.now()}`,
+      id: `temp_${Date.now()}`,
       name: extraForm.name,
       price: extraForm.price,
+      product_id: "",
+      created_at: new Date().toISOString(),
     };
     setMenuForm({
       ...menuForm,
@@ -174,6 +218,14 @@ export function OutletMenuManagement() {
       extras: menuForm.extras.filter((e) => e.id !== extraId),
     });
   };
+
+  if (loadingProducts) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -211,14 +263,14 @@ export function OutletMenuManagement() {
               <div
                 key={menu.id}
                 className={`bg-white rounded-xl shadow-sm overflow-hidden ${
-                  !menu.isAvailable ? "opacity-60" : ""
+                  !menu.is_available ? "opacity-60" : ""
                 }`}
               >
                 {/* Menu Image */}
                 <div className="relative h-48 bg-gray-200">
-                  {menu.imageUrl ? (
+                  {menu.image_url ? (
                     <img
-                      src={menu.imageUrl}
+                      src={menu.image_url}
                       alt={menu.name}
                       className="w-full h-full object-cover"
                     />
@@ -227,7 +279,7 @@ export function OutletMenuManagement() {
                       <ImageIcon className="w-12 h-12 text-gray-400" />
                     </div>
                   )}
-                  {!menu.isAvailable && (
+                  {!menu.is_available && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                       <span className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold">
                         Stok Habis
@@ -248,13 +300,13 @@ export function OutletMenuManagement() {
                   </div>
 
                   <div className="flex items-center gap-2 mb-2">
-                    {menu.discountPrice ? (
+                    {menu.discount_price ? (
                       <>
                         <span className="text-sm text-gray-500 line-through">
                           {formatCurrency(menu.price)}
                         </span>
                         <span className="text-lg font-bold text-orange-600">
-                          {formatCurrency(menu.discountPrice)}
+                          {formatCurrency(menu.discount_price)}
                         </span>
                       </>
                     ) : (
@@ -271,7 +323,7 @@ export function OutletMenuManagement() {
                   )}
 
                   <div className="flex gap-2 text-xs text-gray-500 mb-3">
-                    {menu.sizes.length > 0 && <span>{menu.sizes.length} ukuran</span>}
+                    {menu.variants.length > 0 && <span>{menu.variants.length} varian</span>}
                     {menu.extras.length > 0 && <span>{menu.extras.length} extra</span>}
                   </div>
 
@@ -280,12 +332,12 @@ export function OutletMenuManagement() {
                     <button
                       onClick={() => handleToggleAvailability(menu)}
                       className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        menu.isAvailable
+                        menu.is_available
                           ? "bg-green-50 text-green-700 hover:bg-green-100"
                           : "bg-red-50 text-red-700 hover:bg-red-100"
                       }`}
                     >
-                      {menu.isAvailable ? "Tersedia" : "Habis"}
+                      {menu.is_available ? "Tersedia" : "Habis"}
                     </button>
                     <button
                       onClick={() => handleEditMenu(menu)}
@@ -295,9 +347,14 @@ export function OutletMenuManagement() {
                     </button>
                     <button
                       onClick={() => handleDeleteMenu(menu.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      disabled={deleting === menu.id}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {deleting === menu.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -351,15 +408,15 @@ export function OutletMenuManagement() {
                   Gambar Menu
                 </label>
                 <div className="flex flex-col items-center gap-4">
-                  {menuForm.imageUrl ? (
+                  {menuForm.image_url ? (
                     <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden">
                       <img
-                        src={menuForm.imageUrl}
+                        src={menuForm.image_url}
                         alt="Preview"
                         className="w-full h-full object-cover"
                       />
                       <button
-                        onClick={() => setMenuForm({ ...menuForm, imageUrl: "" })}
+                        onClick={() => setMenuForm({ ...menuForm, image_url: null })}
                         className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                       >
                         <X className="w-4 h-4" />
@@ -367,18 +424,25 @@ export function OutletMenuManagement() {
                     </div>
                   ) : (
                     <label className="w-full h-48 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-orange-500 transition-colors">
-                      <Upload className="w-12 h-12 text-gray-400 mb-2" />
-                      <span className="text-sm text-gray-600">
-                        Klik untuk upload gambar
-                      </span>
-                      <span className="text-xs text-gray-500 mt-1">
-                        JPG, PNG (Max 5MB)
-                      </span>
+                      {uploadingImage ? (
+                        <Loader2 className="w-12 h-12 text-orange-500 animate-spin" />
+                      ) : (
+                        <>
+                          <Upload className="w-12 h-12 text-gray-400 mb-2" />
+                          <span className="text-sm text-gray-600">
+                            Klik untuk upload gambar
+                          </span>
+                          <span className="text-xs text-gray-500 mt-1">
+                            JPG, PNG (Max 5MB)
+                          </span>
+                        </>
+                      )}
                       <input
                         type="file"
                         accept="image/*"
                         onChange={handleImageUpload}
                         className="hidden"
+                        disabled={uploadingImage}
                       />
                     </label>
                   )}
@@ -418,8 +482,8 @@ export function OutletMenuManagement() {
                   </label>
                   <input
                     type="number"
-                    value={menuForm.discountPrice}
-                    onChange={(e) => setMenuForm({ ...menuForm, discountPrice: parseInt(e.target.value) || 0 })}
+                    value={menuForm.discount_price}
+                    onChange={(e) => setMenuForm({ ...menuForm, discount_price: parseInt(e.target.value) || 0 })}
                     placeholder="12000"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
@@ -464,58 +528,58 @@ export function OutletMenuManagement() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setMenuForm({ ...menuForm, isAvailable: !menuForm.isAvailable })}
+                  onClick={() => setMenuForm({ ...menuForm, is_available: !menuForm.is_available })}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    menuForm.isAvailable ? "bg-green-600" : "bg-gray-300"
+                    menuForm.is_available ? "bg-green-600" : "bg-gray-300"
                   }`}
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      menuForm.isAvailable ? "translate-x-6" : "translate-x-1"
+                      menuForm.is_available ? "translate-x-6" : "translate-x-1"
                     }`}
                   />
                 </button>
               </div>
 
-              {/* Sizes Section */}
+              {/* Variants Section */}
               <div className="border-t pt-4">
                 <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm font-medium text-gray-700">Ukuran / Varian</label>
+                  <label className="text-sm font-medium text-gray-700">Varian</label>
                   <button
-                    onClick={() => setShowSizeInput(!showSizeInput)}
+                    onClick={() => setShowVariantInput(!showVariantInput)}
                     className="text-sm text-orange-600 hover:text-orange-700 font-medium"
                   >
-                    + Tambah Ukuran
+                    + Tambah Varian
                   </button>
                 </div>
-                
-                {showSizeInput && (
+
+                {showVariantInput && (
                   <div className="mb-3 p-3 bg-gray-50 rounded-lg">
                     <div className="grid grid-cols-2 gap-2 mb-2">
                       <input
                         type="text"
-                        value={sizeForm.name}
-                        onChange={(e) => setSizeForm({ ...sizeForm, name: e.target.value })}
+                        value={variantForm.name}
+                        onChange={(e) => setVariantForm({ ...variantForm, name: e.target.value })}
                         placeholder="Small / Medium / Large"
                         className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
                       />
                       <input
                         type="number"
-                        value={sizeForm.priceAdjustment}
-                        onChange={(e) => setSizeForm({ ...sizeForm, priceAdjustment: parseInt(e.target.value) || 0 })}
+                        value={variantForm.price_adjustment}
+                        onChange={(e) => setVariantForm({ ...variantForm, price_adjustment: parseInt(e.target.value) || 0 })}
                         placeholder="Tambahan harga"
                         className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
                       />
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={handleAddSize}
+                        onClick={handleAddVariant}
                         className="flex-1 px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm"
                       >
                         Tambah
                       </button>
                       <button
-                        onClick={() => setShowSizeInput(false)}
+                        onClick={() => setShowVariantInput(false)}
                         className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
                       >
                         Batal
@@ -524,21 +588,21 @@ export function OutletMenuManagement() {
                   </div>
                 )}
 
-                {menuForm.sizes.length > 0 && (
+                {menuForm.variants.length > 0 && (
                   <div className="space-y-2">
-                    {menuForm.sizes.map((size) => (
+                    {menuForm.variants.map((variant) => (
                       <div
-                        key={size.id}
+                        key={variant.id}
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                       >
                         <div>
-                          <span className="font-medium text-gray-900">{size.name}</span>
+                          <span className="font-medium text-gray-900">{variant.name}</span>
                           <span className="text-sm text-gray-600 ml-2">
-                            {size.priceAdjustment > 0 ? `+${formatCurrency(size.priceAdjustment)}` : "Harga normal"}
+                            {variant.price_adjustment > 0 ? `+${formatCurrency(variant.price_adjustment)}` : "Harga normal"}
                           </span>
                         </div>
                         <button
-                          onClick={() => handleRemoveSize(size.id)}
+                          onClick={() => handleRemoveVariant(variant.id)}
                           className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
                         >
                           <X className="w-4 h-4" />
@@ -560,7 +624,7 @@ export function OutletMenuManagement() {
                     + Tambah Extra
                   </button>
                 </div>
-                
+
                 {showExtraInput && (
                   <div className="mb-3 p-3 bg-gray-50 rounded-lg">
                     <div className="grid grid-cols-2 gap-2 mb-2">
@@ -632,9 +696,17 @@ export function OutletMenuManagement() {
               </button>
               <button
                 onClick={handleSaveMenu}
-                className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-medium"
+                disabled={saving}
+                className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                Simpan Menu
+                {saving ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  "Simpan Menu"
+                )}
               </button>
             </div>
           </div>

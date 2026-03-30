@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { useData, Village, Order, Product, ProductExtra, ProductSize } from "../contexts/DataContext";
-import { calculateOrderFinance, formatCurrency } from "../utils/financeCalculations";
+import { useState } from "react";
+import { useData, Outlet, ProductWithDetails, ProductVariant, ProductExtra } from "../contexts/DataContext";
+import { calculateOrderFinance, formatCurrency, getDefaultFeeSettings, generateUniquePaymentCode } from "../utils/financeCalculations";
 import { 
   X, 
   Plus, 
@@ -12,19 +12,15 @@ import {
   MapPin, 
   FileText,
   Store,
-  Package,
-  DollarSign,
-  Copy,
-  ExternalLink,
-  Send,
   Check
 } from "lucide-react";
 import { toast } from "sonner";
+import type { TablesInsert } from "../../lib/database.types";
 
 interface ManualOrderItem {
-  product: Product;
+  product: ProductWithDetails;
   quantity: number;
-  selectedSize?: ProductSize;
+  selectedVariant?: ProductVariant;
   selectedExtras: ProductExtra[];
   itemTotal: number;
 }
@@ -34,7 +30,7 @@ interface ManualOrderCreationProps {
   onOrderCreated: (orderId: string) => void;
 }
 
-const VILLAGES: Village[] = [
+const VILLAGES: string[] = [
   "Desa Air Dua",
   "Desa Balai Riam (Pusat Kecamatan)",
   "Desa Bangun Jaya",
@@ -46,7 +42,10 @@ const VILLAGES: Village[] = [
 ];
 
 export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCreationProps) {
-  const { outlets, products, getProductsByOutlet, addOrder, getDistance } = useData();
+  const { outlets, products, getProductsByOutlet, addOrder, getDistance, feeSettings } = useData();
+
+  // Loading state
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Step state
   const [currentStep, setCurrentStep] = useState<"customer" | "outlet" | "items" | "review">("customer");
@@ -54,41 +53,51 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
   // Customer details
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [customerVillage, setCustomerVillage] = useState<Village | "">("");
+  const [customerVillage, setCustomerVillage] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
 
   // Outlet selection
-  const [selectedOutlet, setSelectedOutlet] = useState<typeof outlets[0] | null>(null);
+  const [selectedOutlet, setSelectedOutlet] = useState<Outlet | null>(null);
 
   // Order items
   const [orderItems, setOrderItems] = useState<ManualOrderItem[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [selectedSize, setSelectedSize] = useState<ProductSize | undefined>(undefined);
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithDetails | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | undefined>(undefined);
   const [selectedExtras, setSelectedExtras] = useState<ProductExtra[]>([]);
   const [quantity, setQuantity] = useState(1);
 
   // Payment details
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "transfer">("cod");
-  const [paymentProvider, setPaymentProvider] = useState<"BRI" | "DANA" | undefined>(undefined);
+  const [paymentProvider, setPaymentProvider] = useState<string | undefined>(undefined);
 
   // Frequently used customer data (localStorage)
   const [savedCustomers, setSavedCustomers] = useState<Array<{
     name: string;
     phone: string;
-    village: Village;
+    village: string;
     address: string;
   }>>(() => {
     const saved = localStorage.getItem("sianter_saved_customers");
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Build FeeSettings from context
+  const fees = {
+    cost_per_km: feeSettings.cost_per_km ?? getDefaultFeeSettings().cost_per_km,
+    service_fee: feeSettings.service_fee ?? getDefaultFeeSettings().service_fee,
+    admin_fee: feeSettings.admin_fee ?? getDefaultFeeSettings().admin_fee,
+    driver_share_pct: feeSettings.driver_share_pct ?? getDefaultFeeSettings().driver_share_pct,
+    admin_share_pct: feeSettings.admin_share_pct ?? getDefaultFeeSettings().admin_share_pct,
+    min_distance_km: feeSettings.min_distance_km ?? getDefaultFeeSettings().min_distance_km,
+  };
+
   // Calculate current item price
   const calculateItemPrice = () => {
     if (!selectedProduct) return 0;
-    const basePrice = selectedProduct.discountPrice || selectedProduct.price;
-    const sizePrice = selectedSize ? selectedSize.priceAdjustment : 0;
+    const basePrice = selectedProduct.discount_price || selectedProduct.price;
+    const variantPrice = selectedVariant ? selectedVariant.price_adjustment : 0;
     const extrasPrice = selectedExtras.reduce((sum, extra) => sum + extra.price, 0);
-    return (basePrice + sizePrice + extrasPrice) * quantity;
+    return (basePrice + variantPrice + extrasPrice) * quantity;
   };
 
   // Add item to order
@@ -98,7 +107,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
     const newItem: ManualOrderItem = {
       product: selectedProduct,
       quantity,
-      selectedSize,
+      selectedVariant,
       selectedExtras: [...selectedExtras],
       itemTotal: calculateItemPrice(),
     };
@@ -107,7 +116,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
     
     // Reset item selection
     setSelectedProduct(null);
-    setSelectedSize(undefined);
+    setSelectedVariant(undefined);
     setSelectedExtras([]);
     setQuantity(1);
 
@@ -123,10 +132,10 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
   // Calculate totals
   const subtotal = orderItems.reduce((sum, item) => sum + item.itemTotal, 0);
   const distance = customerVillage && selectedOutlet ? getDistance(customerVillage, selectedOutlet.village) : 0;
-  const finance = calculateOrderFinance(subtotal, distance);
+  const finance = calculateOrderFinance(subtotal, distance, fees);
   
   // Generate unique payment code for transfer
-  const uniquePaymentCode = paymentMethod === "transfer" ? Math.floor(100 + Math.random() * 900) : undefined;
+  const uniquePaymentCode = paymentMethod === "transfer" ? generateUniquePaymentCode() : undefined;
   const finalPaymentAmount = uniquePaymentCode ? finance.total + uniquePaymentCode : finance.total;
 
   // Handle customer data autofill
@@ -145,7 +154,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
     const customerData = {
       name: customerName,
       phone: customerPhone,
-      village: customerVillage as Village,
+      village: customerVillage,
       address: customerAddress,
     };
 
@@ -156,11 +165,9 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
 
     let updatedCustomers;
     if (existingIndex >= 0) {
-      // Update existing
       updatedCustomers = [...savedCustomers];
       updatedCustomers[existingIndex] = customerData;
     } else {
-      // Add new (keep max 10 recent customers)
       updatedCustomers = [customerData, ...savedCustomers].slice(0, 10);
     }
 
@@ -169,53 +176,70 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
   };
 
   // Create order
-  const createOrder = () => {
+  const createOrder = async () => {
     if (!selectedOutlet || !customerVillage || orderItems.length === 0) {
       toast.error("Data pesanan tidak lengkap");
       return;
     }
 
-    // Save customer data for future use
-    saveCustomerData();
+    setIsSubmitting(true);
 
-    const orderData = {
-      customerName,
-      customerPhone,
-      customerVillage: customerVillage as Village,
-      address: customerAddress,
-      outlet: selectedOutlet,
-      items: orderItems.map(item => ({
+    try {
+      // Save customer data for future use
+      saveCustomerData();
+
+      const orderData: TablesInsert<"orders"> = {
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        customer_village: customerVillage,
+        address: customerAddress,
+        outlet_id: selectedOutlet.id,
+        outlet_name: selectedOutlet.name,
+        subtotal,
+        distance,
+        charged_distance: finance.chargedDistance,
+        delivery_fee: finance.deliveryFee,
+        service_fee: finance.serviceFee,
+        admin_fee: finance.adminFee,
+        total: finance.total,
+        payment_method: paymentMethod,
+        payment_provider: paymentProvider ?? null,
+        unique_payment_code: uniquePaymentCode ?? null,
+        final_payment_amount: uniquePaymentCode ? finalPaymentAmount : null,
+        payment_status: paymentMethod === "cod" ? null : "pending",
+        status: "pending",
+        is_manual_order: true,
+        is_delivery_service: true,
+      };
+
+      const itemsData: TablesInsert<"order_items">[] = orderItems.map((item) => ({
+        product_id: item.product.id,
         name: item.product.name,
-        quantity: item.quantity,
         price: item.itemTotal / item.quantity,
-        selectedSize: item.selectedSize?.name,
-        selectedExtras: item.selectedExtras.map(e => e.name),
-      })),
-      subtotal,
-      distance,
-      chargedDistance: finance.chargedDistance,
-      isMinimumChargeApplied: finance.isMinimumChargeApplied,
-      deliveryFee: finance.deliveryFee,
-      serviceFee: finance.serviceFee,
-      total: finance.total,
-      paymentMethod,
-      paymentProvider,
-      uniquePaymentCode,
-      finalPaymentAmount,
-      paymentStatus: paymentMethod === "cod" ? undefined : ("pending" as const),
-      status: "pending" as const,
-      timestamp: new Date().toISOString(),
-      isManualOrder: true, // Mark as manual order
-    };
+        quantity: item.quantity,
+        item_total: item.itemTotal,
+        selected_variant: item.selectedVariant?.name ?? null,
+        selected_extras: item.selectedExtras.length > 0
+          ? item.selectedExtras.map(e => e.name)
+          : null,
+      }));
 
-    const orderId = addOrder(orderData as any);
-    
-    toast.success("Pesanan manual berhasil dibuat!", {
-      description: `Order ID: ${orderId}`,
-      duration: 5000,
-    });
+      const orderId = await addOrder(orderData, itemsData);
+      
+      toast.success("Pesanan manual berhasil dibuat!", {
+        description: `Order ID: ${orderId}`,
+        duration: 5000,
+      });
 
-    onOrderCreated(orderId);
+      onOrderCreated(orderId);
+    } catch (error) {
+      console.error("Error creating order:", error);
+      toast.error("Gagal membuat pesanan", {
+        description: error instanceof Error ? error.message : "Terjadi kesalahan",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Generate WhatsApp message
@@ -232,7 +256,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
     
     orderItems.forEach((item, index) => {
       message += `${index + 1}. ${item.product.name}`;
-      if (item.selectedSize) message += ` (${item.selectedSize.name})`;
+      if (item.selectedVariant) message += ` (${item.selectedVariant.name})`;
       if (item.selectedExtras.length > 0) {
         message += ` + ${item.selectedExtras.map(e => e.name).join(", ")}`;
       }
@@ -277,7 +301,9 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
   };
 
   // Get available products for selected outlet
-  const availableProducts = selectedOutlet ? getProductsByOutlet(selectedOutlet.id).filter(p => p.isAvailable) : [];
+  const availableProducts = selectedOutlet
+    ? getProductsByOutlet(selectedOutlet.id).filter(p => p.is_available)
+    : [];
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -389,7 +415,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                     </label>
                     <select
                       value={customerVillage}
-                      onChange={(e) => setCustomerVillage(e.target.value as Village)}
+                      onChange={(e) => setCustomerVillage(e.target.value)}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6A00] focus:border-transparent"
                     >
                       <option value="">Pilih desa</option>
@@ -442,7 +468,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
 
                 <div className="grid md:grid-cols-2 gap-4">
                   {outlets.map((outlet) => {
-                    const distanceToCustomer = customerVillage ? getDistance(customerVillage as Village, outlet.village) : 0;
+                    const distanceToCustomer = customerVillage ? getDistance(customerVillage, outlet.village) : 0;
                     const isSelected = selectedOutlet?.id === outlet.id;
 
                     return (
@@ -520,7 +546,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                           <div className="flex-1">
                             <p className="font-medium text-gray-900">
                               {item.product.name}
-                              {item.selectedSize && ` (${item.selectedSize.name})`}
+                              {item.selectedVariant && ` (${item.selectedVariant.name})`}
                             </p>
                             {item.selectedExtras.length > 0 && (
                               <p className="text-sm text-gray-500">
@@ -559,7 +585,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                       onChange={(e) => {
                         const product = availableProducts.find(p => p.id === e.target.value);
                         setSelectedProduct(product || null);
-                        setSelectedSize(undefined);
+                        setSelectedVariant(undefined);
                         setSelectedExtras([]);
                       }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6A00] focus:border-transparent"
@@ -567,7 +593,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                       <option value="">Pilih produk</option>
                       {availableProducts.map((product) => (
                         <option key={product.id} value={product.id}>
-                          {product.name} - {formatCurrency(product.discountPrice || product.price)}
+                          {product.name} - {formatCurrency(product.discount_price || product.price)}
                         </option>
                       ))}
                     </select>
@@ -575,26 +601,26 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
 
                   {selectedProduct && (
                     <>
-                      {/* Size Selection */}
-                      {selectedProduct.sizes.length > 0 && (
+                      {/* Variant Selection */}
+                      {selectedProduct.variants.length > 0 && (
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Ukuran
                           </label>
                           <div className="flex flex-wrap gap-2">
-                            {selectedProduct.sizes.map((size) => (
+                            {selectedProduct.variants.map((variant) => (
                               <button
-                                key={size.id}
-                                onClick={() => setSelectedSize(size)}
+                                key={variant.id}
+                                onClick={() => setSelectedVariant(variant)}
                                 className={`px-4 py-2 border-2 rounded-lg transition-colors ${
-                                  selectedSize?.id === size.id
+                                  selectedVariant?.id === variant.id
                                     ? "border-[#FF6A00] bg-[#FF6A00]/5 text-[#FF6A00]"
                                     : "border-gray-200 hover:border-gray-300"
                                 }`}
                               >
-                                {size.name}
-                                {size.priceAdjustment > 0 && (
-                                  <span className="ml-2 text-sm">+{formatCurrency(size.priceAdjustment)}</span>
+                                {variant.name}
+                                {variant.price_adjustment > 0 && (
+                                  <span className="ml-2 text-sm">+{formatCurrency(variant.price_adjustment)}</span>
                                 )}
                               </button>
                             ))}
@@ -739,7 +765,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                         <div className="flex-1">
                           <p className="font-medium">
                             {item.product.name}
-                            {item.selectedSize && ` (${item.selectedSize.name})`}
+                            {item.selectedVariant && ` (${item.selectedVariant.name})`}
                           </p>
                           {item.selectedExtras.length > 0 && (
                             <p className="text-xs text-gray-500">
@@ -867,10 +893,10 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                 </button>
                 <button
                   onClick={createOrder}
-                  disabled={paymentMethod === "transfer" && !paymentProvider}
+                  disabled={isSubmitting || (paymentMethod === "transfer" && !paymentProvider)}
                   className="flex-1 bg-[#FF6A00] text-white py-3 rounded-lg font-medium hover:bg-[#FF6A00]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Buat Pesanan
+                  {isSubmitting ? "Membuat Pesanan..." : "Buat Pesanan"}
                 </button>
               </div>
             </div>

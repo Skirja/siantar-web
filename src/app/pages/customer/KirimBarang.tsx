@@ -1,8 +1,22 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, Package, MapPin, Phone, User, FileText, Scale } from "lucide-react";
+import {
+  ArrowLeft,
+  Package,
+  MapPin,
+  User,
+  Scale,
+  Loader2,
+} from "lucide-react";
 import { useData, Village } from "../../contexts/DataContext";
-import { calculateOrderFinance, formatCurrency } from "../../utils/financeCalculations";
+import {
+  calculateOrderFinance,
+  formatCurrency,
+  getDefaultFeeSettings,
+  generateUniquePaymentCode,
+} from "../../utils/financeCalculations";
+import { toast } from "sonner";
+import type { TablesInsert } from "../../lib/database.types";
 
 const VILLAGES: Village[] = [
   "Desa Air Dua",
@@ -25,7 +39,7 @@ const PACKAGE_CATEGORIES = [
 
 export function KirimBarang() {
   const navigate = useNavigate();
-  const { addOrder, getDistance } = useData();
+  const { addOrder, getDistance, feeSettings, outlets } = useData();
 
   // Sender (Pengirim) Details
   const [senderName, setSenderName] = useState("");
@@ -45,113 +59,161 @@ export function KirimBarang() {
   const [notes, setNotes] = useState("");
 
   // Payment
-  const [paymentMethod, setPaymentMethod] = useState<"cod" | "transfer-bri" | "transfer-dana">("cod");
+  const [paymentMethod, setPaymentMethod] = useState<
+    "cod" | "transfer-bri" | "transfer-dana"
+  >("cod");
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Build FeeSettings from context data
+  const fees = {
+    cost_per_km:
+      feeSettings.cost_per_km ?? getDefaultFeeSettings().cost_per_km,
+    service_fee:
+      feeSettings.service_fee ?? getDefaultFeeSettings().service_fee,
+    admin_fee: feeSettings.admin_fee ?? getDefaultFeeSettings().admin_fee,
+    driver_share_pct:
+      feeSettings.driver_share_pct ?? getDefaultFeeSettings().driver_share_pct,
+    admin_share_pct:
+      feeSettings.admin_share_pct ?? getDefaultFeeSettings().admin_share_pct,
+    min_distance_km:
+      feeSettings.min_distance_km ?? getDefaultFeeSettings().min_distance_km,
+  };
 
   // Calculate distance and pricing
-  const distance = fromVillage && toVillage ? getDistance(fromVillage, toVillage) : 0;
+  const distance =
+    fromVillage && toVillage ? getDistance(fromVillage, toVillage) : 0;
   const subtotal = 0; // No item subtotal for delivery service
-  const finance = calculateOrderFinance(subtotal, distance);
+  const finance = calculateOrderFinance(subtotal, distance, fees);
 
   // Display weight (minimum 1kg)
-  const displayWeight = estimatedWeight && parseFloat(estimatedWeight) < 1 ? "1 kg" : estimatedWeight ? `${estimatedWeight} kg` : "0 kg";
+  const displayWeight =
+    estimatedWeight && parseFloat(estimatedWeight) < 1
+      ? "1 kg"
+      : estimatedWeight
+        ? `${estimatedWeight} kg`
+        : "0 kg";
 
-  const handleSubmit = () => {
+  // Use first available outlet as fallback for delivery service
+  const deliveryOutlet = outlets[0];
+
+  const handleSubmit = async () => {
     // Validation
     if (!senderName || !senderPhone || !fromVillage || !fromAddress) {
-      alert("Mohon lengkapi data pengirim");
+      toast.error("Mohon lengkapi data pengirim");
       return;
     }
 
     if (!receiverName || !receiverPhone || !toVillage || !toAddress) {
-      alert("Mohon lengkapi data penerima");
+      toast.error("Mohon lengkapi data penerima");
       return;
     }
 
     if (!packageCategory || !estimatedWeight) {
-      alert("Mohon lengkapi detail barang");
+      toast.error("Mohon lengkapi detail barang");
       return;
     }
 
     if (fromVillage === toVillage) {
-      alert("Desa pengirim dan penerima tidak boleh sama");
+      toast.error("Desa pengirim dan penerima tidak boleh sama");
       return;
     }
 
-    // Generate unique 3-digit payment code for transfer payments
-    const uniquePaymentCode = paymentMethod !== "cod" 
-      ? Math.floor(100 + Math.random() * 900)
-      : undefined;
+    if (!deliveryOutlet) {
+      toast.error("Tidak ada outlet tersedia");
+      return;
+    }
 
-    const finalPaymentAmount = uniquePaymentCode 
-      ? finance.total + uniquePaymentCode
-      : finance.total;
+    setIsSubmitting(true);
 
-    // Determine payment provider and status
-    const paymentProvider = paymentMethod === "transfer-bri" ? "BRI" : paymentMethod === "transfer-dana" ? "DANA" : undefined;
-    const paymentStatus = paymentMethod === "cod" ? undefined : "pending";
-    const orderStatus = paymentMethod === "cod" ? "pending" : "pending" as const;
+    try {
+      // Generate unique 3-digit payment code for transfer payments
+      const uniquePaymentCode =
+        paymentMethod !== "cod" ? generateUniquePaymentCode() : null;
 
-    // Create virtual outlet for delivery service
-    const deliveryOutlet = {
-      id: "delivery_service",
-      name: "SiAnter Delivery Service",
-      village: fromVillage as Village,
-      category: "package" as const,
-      menuCount: 0,
-    };
+      const finalPaymentAmount = uniquePaymentCode
+        ? finance.total + uniquePaymentCode
+        : finance.total;
 
-    // Create order
-    const orderData = {
-      customerName: senderName,
-      customerPhone: senderPhone,
-      customerVillage: toVillage as Village,
-      address: toAddress,
-      outlet: deliveryOutlet,
-      items: [{
-        name: `Kirim Barang: ${packageCategory}`,
-        quantity: 1,
-        price: finance.total,
-        selectedSize: displayWeight,
-        selectedExtras: notes ? [notes] : undefined,
-      }],
-      subtotal,
-      distance,
-      chargedDistance: finance.chargedDistance,
-      isMinimumChargeApplied: finance.isMinimumChargeApplied,
-      deliveryFee: finance.deliveryFee,
-      serviceFee: finance.serviceFee,
-      total: finance.total,
-      paymentMethod: (paymentMethod === "cod" ? "cod" : "transfer") as "cod" | "transfer",
-      paymentProvider,
-      uniquePaymentCode,
-      finalPaymentAmount,
-      paymentStatus,
-      status: orderStatus,
-      timestamp: new Date().toISOString(),
-      isDeliveryService: true,
-      // Additional delivery service data
-      deliveryData: {
-        senderName,
-        senderPhone,
-        fromVillage,
-        fromAddress,
-        receiverName,
-        receiverPhone,
-        toVillage,
-        toAddress,
-        packageCategory,
-        estimatedWeight: parseFloat(estimatedWeight) < 1 ? 1 : parseFloat(estimatedWeight),
-        notes,
-      },
-    };
+      // Determine payment provider
+      const paymentProvider =
+        paymentMethod === "transfer-bri"
+          ? "BRI"
+          : paymentMethod === "transfer-dana"
+            ? "DANA"
+            : null;
 
-    const orderId = addOrder(orderData as any);
+      const orderId = crypto.randomUUID();
 
-    // Redirect based on payment method
-    if (paymentMethod === "cod") {
-      navigate(`/home/tracking/${orderId}`);
-    } else {
-      navigate(`/home/payment/${orderId}`);
+      // Build order data with snake_case fields
+      const orderData: TablesInsert<"orders"> = {
+        id: orderId,
+        customer_name: senderName,
+        customer_phone: senderPhone,
+        customer_village: toVillage,
+        address: toAddress,
+        outlet_id: deliveryOutlet.id,
+        outlet_name: deliveryOutlet.name,
+        subtotal,
+        distance,
+        charged_distance: finance.chargedDistance,
+        delivery_fee: finance.deliveryFee,
+        service_fee: finance.serviceFee,
+        admin_fee: finance.adminFee,
+        total: finance.total,
+        payment_method: paymentMethod === "cod" ? "cod" : "transfer",
+        payment_provider: paymentProvider,
+        unique_payment_code: uniquePaymentCode,
+        final_payment_amount: finalPaymentAmount,
+        payment_status: "pending",
+        status: "pending",
+        is_manual_order: false,
+        is_delivery_service: true,
+        delivery_data: {
+          sender_name: senderName,
+          sender_phone: senderPhone,
+          from_village: fromVillage,
+          from_address: fromAddress,
+          receiver_name: receiverName,
+          receiver_phone: receiverPhone,
+          to_village: toVillage,
+          to_address: toAddress,
+          package_category: packageCategory,
+          estimated_weight:
+            parseFloat(estimatedWeight) < 1 ? 1 : parseFloat(estimatedWeight),
+          notes,
+        },
+      };
+
+      // Build order items array for delivery service
+      const orderItems: TablesInsert<"order_items">[] = [
+        {
+          order_id: orderId,
+          product_id: null,
+          name: `Kirim Barang: ${packageCategory}`,
+          price: finance.total,
+          quantity: 1,
+          item_total: finance.total,
+          selected_variant: displayWeight,
+          selected_extras: notes ? [notes] : [],
+        },
+      ];
+
+      const newOrderId = await addOrder(orderData, orderItems);
+
+      toast.success("Pengiriman berhasil dibuat!");
+
+      // Redirect based on payment method
+      if (paymentMethod === "cod") {
+        navigate(`/home/tracking/${newOrderId}`);
+      } else {
+        navigate(`/home/payment/${newOrderId}`);
+      }
+    } catch (error) {
+      console.error("Failed to create delivery order:", error);
+      toast.error("Gagal membuat pengiriman. Silakan coba lagi.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -168,8 +230,12 @@ export function KirimBarang() {
         </button>
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Kirim Barang</h1>
-          <p className="text-gray-600">Kirim paket, dokumen, atau barang antar desa dengan aman</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Kirim Barang
+          </h1>
+          <p className="text-gray-600">
+            Kirim paket, dokumen, atau barang antar desa dengan aman
+          </p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -181,7 +247,9 @@ export function KirimBarang() {
                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                   <User className="w-5 h-5 text-blue-600" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">Data Pengirim</h2>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Data Pengirim
+                </h2>
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
@@ -217,7 +285,9 @@ export function KirimBarang() {
                   </label>
                   <select
                     value={fromVillage}
-                    onChange={(e) => setFromVillage(e.target.value as Village)}
+                    onChange={(e) =>
+                      setFromVillage(e.target.value as Village)
+                    }
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6A00] focus:border-transparent bg-white"
                   >
                     <option value="">Pilih desa</option>
@@ -250,7 +320,9 @@ export function KirimBarang() {
                 <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                   <MapPin className="w-5 h-5 text-green-600" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">Data Penerima</h2>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Data Penerima
+                </h2>
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
@@ -319,7 +391,9 @@ export function KirimBarang() {
                 <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
                   <Package className="w-5 h-5 text-purple-600" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">Detail Barang</h2>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Detail Barang
+                </h2>
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
@@ -380,20 +454,28 @@ export function KirimBarang() {
 
             {/* Payment Method */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Metode Pembayaran</h2>
-              
+              <h2 className="text-xl font-bold text-gray-900 mb-4">
+                Metode Pembayaran
+              </h2>
+
               <div className="space-y-3">
                 <label className="flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-[#FF6A00] transition-colors">
                   <input
                     type="radio"
                     value="cod"
                     checked={paymentMethod === "cod"}
-                    onChange={(e) => setPaymentMethod(e.target.value as any)}
+                    onChange={(e) =>
+                      setPaymentMethod(e.target.value as "cod")
+                    }
                     className="w-4 h-4 text-[#FF6A00] focus:ring-[#FF6A00]"
                   />
                   <div className="ml-3 flex-1">
-                    <p className="font-medium text-gray-900">💵 Cash on Delivery (COD)</p>
-                    <p className="text-sm text-gray-500">Bayar saat barang sampai</p>
+                    <p className="font-medium text-gray-900">
+                      Cash on Delivery (COD)
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Bayar saat barang sampai
+                    </p>
                   </div>
                 </label>
 
@@ -402,12 +484,16 @@ export function KirimBarang() {
                     type="radio"
                     value="transfer-bri"
                     checked={paymentMethod === "transfer-bri"}
-                    onChange={(e) => setPaymentMethod(e.target.value as any)}
+                    onChange={(e) =>
+                      setPaymentMethod(e.target.value as "transfer-bri")
+                    }
                     className="w-4 h-4 text-[#FF6A00] focus:ring-[#FF6A00]"
                   />
                   <div className="ml-3 flex-1">
-                    <p className="font-medium text-gray-900">🏦 Transfer BRI</p>
-                    <p className="text-sm text-gray-500">Transfer ke rekening BRI</p>
+                    <p className="font-medium text-gray-900">Transfer BRI</p>
+                    <p className="text-sm text-gray-500">
+                      Transfer ke rekening BRI
+                    </p>
                   </div>
                 </label>
 
@@ -416,11 +502,13 @@ export function KirimBarang() {
                     type="radio"
                     value="transfer-dana"
                     checked={paymentMethod === "transfer-dana"}
-                    onChange={(e) => setPaymentMethod(e.target.value as any)}
+                    onChange={(e) =>
+                      setPaymentMethod(e.target.value as "transfer-dana")
+                    }
                     className="w-4 h-4 text-[#FF6A00] focus:ring-[#FF6A00]"
                   />
                   <div className="ml-3 flex-1">
-                    <p className="font-medium text-gray-900">💰 Transfer DANA</p>
+                    <p className="font-medium text-gray-900">Transfer DANA</p>
                     <p className="text-sm text-gray-500">Transfer ke DANA</p>
                   </div>
                 </label>
@@ -431,7 +519,9 @@ export function KirimBarang() {
           {/* Right Column - Summary */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl shadow-sm p-6 sticky top-8">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Ringkasan Pengiriman</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-4">
+                Ringkasan Pengiriman
+              </h3>
 
               {distance > 0 ? (
                 <div className="space-y-4">
@@ -440,7 +530,9 @@ export function KirimBarang() {
                     <div className="flex items-start gap-3">
                       <MapPin className="w-5 h-5 text-blue-600 mt-0.5" />
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">Dari</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          Dari
+                        </p>
                         <p className="text-sm text-gray-600">{fromVillage}</p>
                       </div>
                     </div>
@@ -459,9 +551,13 @@ export function KirimBarang() {
                     <div className="p-4 bg-purple-50 rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
                         <Package className="w-4 h-4 text-purple-600" />
-                        <p className="text-sm font-medium text-gray-900">Detail Barang</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          Detail Barang
+                        </p>
                       </div>
-                      <p className="text-sm text-gray-600">{packageCategory}</p>
+                      <p className="text-sm text-gray-600">
+                        {packageCategory}
+                      </p>
                       {estimatedWeight && (
                         <p className="text-sm text-gray-600 mt-1">
                           Berat: {displayWeight}
@@ -474,15 +570,23 @@ export function KirimBarang() {
                   <div className="pt-4 border-t border-gray-200 space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Jarak</span>
-                      <span className="font-medium text-gray-900">{distance} km</span>
+                      <span className="font-medium text-gray-900">
+                        {distance} km
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Biaya Layanan</span>
-                      <span className="font-medium text-gray-900">{formatCurrency(finance.serviceFee)}</span>
+                      <span className="font-medium text-gray-900">
+                        {formatCurrency(finance.serviceFee)}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Biaya Kirim ({finance.chargedDistance} km)</span>
-                      <span className="font-medium text-gray-900">{formatCurrency(finance.deliveryFee)}</span>
+                      <span className="text-gray-600">
+                        Biaya Kirim ({finance.chargedDistance} km)
+                      </span>
+                      <span className="font-medium text-gray-900">
+                        {formatCurrency(finance.deliveryFee)}
+                      </span>
                     </div>
                     {finance.isMinimumChargeApplied && (
                       <p className="text-xs text-orange-600">
@@ -492,7 +596,9 @@ export function KirimBarang() {
                     <div className="pt-3 border-t border-gray-200">
                       <div className="flex justify-between">
                         <span className="font-bold text-gray-900">Total</span>
-                        <span className="font-bold text-[#FF6A00] text-xl">{formatCurrency(finance.total)}</span>
+                        <span className="font-bold text-[#FF6A00] text-xl">
+                          {formatCurrency(finance.total)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -500,9 +606,17 @@ export function KirimBarang() {
                   {/* Submit Button */}
                   <button
                     onClick={handleSubmit}
-                    className="w-full bg-gradient-to-r from-[#FF6A00] to-orange-600 text-white py-4 rounded-lg font-bold hover:shadow-lg transition-all transform hover:scale-105"
+                    disabled={isSubmitting}
+                    className="w-full bg-gradient-to-r from-[#FF6A00] to-orange-600 text-white py-4 rounded-lg font-bold hover:shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
                   >
-                    Buat Pengiriman
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Memproses...
+                      </>
+                    ) : (
+                      "Buat Pengiriman"
+                    )}
                   </button>
                 </div>
               ) : (

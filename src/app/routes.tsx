@@ -8,6 +8,7 @@ import { PaymentInstruction } from "./pages/customer/PaymentInstruction";
 import { OrderTracking } from "./pages/customer/OrderTracking";
 import { AdminPanel } from "./pages/admin/AdminPanel";
 import { OutletMenuManagement } from "./pages/admin/OutletMenuManagement";
+import { Settings } from "./pages/admin/Settings";
 import { DriverPanel } from "./pages/driver/DriverPanel";
 import { History } from "./pages/customer/History";
 import { Splash } from "./pages/auth/Splash";
@@ -21,7 +22,6 @@ import { CartProvider } from "./contexts/CartContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
 
-// Root layout with all providers
 function RootLayout() {
   return (
     <AuthProvider>
@@ -40,26 +40,11 @@ export const router = createBrowserRouter([
   {
     element: <RootLayout />,
     children: [
-      {
-        path: "/",
-        element: <Splash />,
-      },
-      {
-        path: "/service-selection",
-        element: <ServiceSelection />,
-      },
-      {
-        path: "/login-customer",
-        element: <LoginCustomer />,
-      },
-      {
-        path: "/login-admin",
-        element: <LoginAdmin />,
-      },
-      {
-        path: "/login-driver",
-        element: <LoginDriver />,
-      },
+      { path: "/", element: <Splash /> },
+      { path: "/service-selection", element: <ServiceSelection /> },
+      { path: "/login-customer", element: <LoginCustomer /> },
+      { path: "/login-admin", element: <LoginAdmin /> },
+      { path: "/login-driver", element: <LoginDriver /> },
       {
         path: "/home",
         element: <CustomerLayout />,
@@ -74,18 +59,10 @@ export const router = createBrowserRouter([
           { path: "kirim-barang", element: <KirimBarang /> },
         ],
       },
-      {
-        path: "/admin",
-        element: <AdminPanel />,
-      },
-      {
-        path: "/admin/outlet/:outletId/menu",
-        element: <OutletMenuManagement />,
-      },
-      {
-        path: "/driver",
-        element: <DriverPanel />,
-      },
+      { path: "/admin", element: <AdminPanel /> },
+      { path: "/admin/outlet/:outletId/menu", element: <OutletMenuManagement /> },
+      { path: "/admin/settings", element: <Settings /> },
+      { path: "/driver", element: <DriverPanel /> },
     ],
   },
 ]);

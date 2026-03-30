@@ -8,18 +8,24 @@ export function LoginAdmin() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
-    if (login("admin", username, password)) {
+    const result = await login("admin", username, password);
+
+    if (result.success) {
       navigate("/admin");
     } else {
-      setError("Username atau password salah");
+      setError(result.message || "Username atau password salah");
     }
+
+    setLoading(false);
   };
 
   return (
@@ -48,16 +54,14 @@ export function LoginAdmin() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Username
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Masukkan username admin"
+                  placeholder="Email admin"
                   className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF6A00] focus:border-transparent transition-all"
                   required
                 />
@@ -65,9 +69,7 @@ export function LoginAdmin() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
@@ -83,33 +85,21 @@ export function LoginAdmin() {
 
             <button
               type="submit"
-              className="w-full py-4 bg-gradient-to-r from-[#FF6A00] to-[#FF8534] text-white rounded-xl hover:shadow-lg hover:scale-[1.02] transition-all font-semibold text-lg"
+              disabled={loading}
+              className="w-full py-4 bg-gradient-to-r from-[#FF6A00] to-[#FF8534] text-white rounded-xl hover:shadow-lg hover:scale-[1.02] transition-all font-semibold text-lg disabled:opacity-50"
             >
-              Login
+              {loading ? "Memproses..." : "Login"}
             </button>
           </form>
-
-          <div className="mt-6 text-center text-sm text-gray-600">
-            <p className="mb-2">Demo credentials:</p>
-            <div className="font-mono text-xs bg-gray-100 p-3 rounded-lg">
-              admin / admin123
-            </div>
-          </div>
 
           <div className="mt-8 pt-6 border-t border-gray-200">
             <p className="text-center text-sm text-gray-600 mb-3">Login sebagai:</p>
             <div className="flex flex-col gap-2 text-sm text-center">
-              <Link
-                to="/login-customer"
-                className="text-gray-600 hover:text-[#FF6A00] transition-colors font-medium"
-              >
-                Customer →
+              <Link to="/login-customer" className="text-gray-600 hover:text-[#FF6A00] transition-colors font-medium">
+                Customer
               </Link>
-              <Link
-                to="/login-driver"
-                className="text-gray-600 hover:text-[#FF6A00] transition-colors font-medium"
-              >
-                Driver Portal →
+              <Link to="/login-driver" className="text-gray-600 hover:text-[#FF6A00] transition-colors font-medium">
+                Driver Portal
               </Link>
             </div>
           </div>

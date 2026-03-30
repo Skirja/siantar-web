@@ -3,7 +3,13 @@ import { useNavigate } from "react-router";
 import { ArrowLeft, MapPin } from "lucide-react";
 import { useCart } from "../../contexts/CartContext";
 import { useData, Village } from "../../contexts/DataContext";
-import { calculateOrderFinance, formatCurrency } from "../../utils/financeCalculations";
+import {
+  calculateOrderFinance,
+  formatCurrency,
+  getDefaultFeeSettings,
+  generateUniquePaymentCode,
+} from "../../utils/financeCalculations";
+import type { TablesInsert } from "../../lib/database.types";
 
 const VILLAGES: Village[] = [
   "Desa Air Dua",
@@ -17,14 +23,15 @@ const VILLAGES: Village[] = [
 ];
 
 export function Checkout() {
-  const { items, clearCart } = useCart();
-  const { addOrder, outlets, getDistance } = useData();
+  const { items, subtotal: cartSubtotal, clearCart } = useCart();
+  const { addOrder, outlets, getDistance, feeSettings } = useData();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [village, setVillage] = useState<Village | "">("");
   const [address, setAddress] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "transfer-bri" | "transfer-dana">("cod");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Redirect if cart is empty
   useEffect(() => {
@@ -33,20 +40,25 @@ export function Checkout() {
     }
   }, [items.length, navigate]);
 
-  const subtotal = items.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
-
   // Get outlet from first item (assuming all items from same store)
-  const outlet = outlets.find(o => o.name === items[0]?.storeName);
-  
+  const outlet = outlets.find(o => o.id === items[0]?.outletId);
+
   // Calculate distance based on villages
   const distance = village && outlet ? getDistance(village, outlet.village) : 0;
 
-  const finance = calculateOrderFinance(subtotal, distance);
+  // Build FeeSettings from context data
+  const fees = {
+    cost_per_km: feeSettings.cost_per_km ?? getDefaultFeeSettings().cost_per_km,
+    service_fee: feeSettings.service_fee ?? getDefaultFeeSettings().service_fee,
+    admin_fee: feeSettings.admin_fee ?? getDefaultFeeSettings().admin_fee,
+    driver_share_pct: feeSettings.driver_share_pct ?? getDefaultFeeSettings().driver_share_pct,
+    admin_share_pct: feeSettings.admin_share_pct ?? getDefaultFeeSettings().admin_share_pct,
+    min_distance_km: feeSettings.min_distance_km ?? getDefaultFeeSettings().min_distance_km,
+  };
 
-  const handleOrder = () => {
+  const finance = calculateOrderFinance(cartSubtotal, distance, fees);
+
+  const handleOrder = async () => {
     if (!name || !phone || !village || !address) {
       alert("Mohon lengkapi semua data");
       return;
@@ -58,73 +70,80 @@ export function Checkout() {
     }
 
     // Validate single-store order (all items must be from same store)
-    const uniqueStores = new Set(items.map(item => item.storeName));
+    const uniqueStores = new Set(items.map(item => item.outletId));
     if (uniqueStores.size > 1) {
       alert("Pesanan harus dari satu toko yang sama");
       return;
     }
 
-    // Generate unique 3-digit payment code for transfer payments
-    const uniquePaymentCode = paymentMethod !== "cod" 
-      ? Math.floor(100 + Math.random() * 900)  // Random 3-digit number (100-999)
-      : undefined;
+    setIsSubmitting(true);
 
-    const finalPaymentAmount = uniquePaymentCode 
-      ? finance.total + uniquePaymentCode
-      : finance.total;
+    try {
+      // Generate unique 3-digit payment code for transfer payments
+      const uniquePaymentCode = paymentMethod !== "cod"
+        ? generateUniquePaymentCode()
+        : null;
 
-    // Determine payment provider and status
-    const paymentProvider = paymentMethod === "transfer-bri" ? "BRI" : paymentMethod === "transfer-dana" ? "DANA" : undefined;
-    const paymentStatus = paymentMethod === "cod" ? undefined : "pending";
-    const orderStatus = paymentMethod === "cod" ? "pending" : "pending" as const;
+      const finalPaymentAmount = uniquePaymentCode
+        ? finance.total + uniquePaymentCode
+        : finance.total;
 
-    // Create order data with proper distance calculation
-    const orderData = {
-      customerName: name,
-      customerPhone: phone,
-      customerVillage: village,
-      address,
-      outlet: outlet,
-      items: items.map(item => ({
+      // Determine payment provider
+      const paymentProvider = paymentMethod === "transfer-bri" ? "BRI" : paymentMethod === "transfer-dana" ? "DANA" : null;
+
+      // Build order data with snake_case fields
+      const orderData: TablesInsert<"orders"> = {
+        id: crypto.randomUUID(),
+        customer_name: name,
+        customer_phone: phone,
+        customer_village: village,
+        address,
+        outlet_id: outlet.id,
+        outlet_name: outlet.name,
+        subtotal: cartSubtotal,
+        distance,
+        charged_distance: finance.chargedDistance,
+        delivery_fee: finance.deliveryFee,
+        service_fee: finance.serviceFee,
+        admin_fee: finance.adminFee,
+        total: finance.total,
+        payment_method: paymentMethod === "cod" ? "cod" : "transfer",
+        payment_provider: paymentProvider,
+        unique_payment_code: uniquePaymentCode,
+        final_payment_amount: finalPaymentAmount,
+        payment_status: "pending",
+        status: "pending",
+        is_manual_order: false,
+        is_delivery_service: true,
+      };
+
+      // Build order items array
+      const orderItems: TablesInsert<"order_items">[] = items.map(item => ({
+        order_id: orderData.id!,
+        product_id: item.productId,
         name: item.name,
-        quantity: item.quantity,
         price: item.price,
-        selectedSize: item.selectedSize,
-        selectedExtras: item.selectedExtras,
-      })),
-      subtotal,
-      distance, // Actual distance
-      chargedDistance: finance.chargedDistance, // Distance used for calculation (min 1 km)
-      isMinimumChargeApplied: finance.isMinimumChargeApplied, // Whether minimum charge was applied
-      deliveryFee: finance.deliveryFee,
-      serviceFee: finance.serviceFee,
-      total: finance.total,
-      paymentMethod: (paymentMethod === "cod" ? "cod" : "transfer") as "cod" | "transfer",
-      paymentProvider,
-      uniquePaymentCode,
-      finalPaymentAmount,
-      paymentStatus,
-      status: orderStatus,
-      timestamp: new Date().toISOString(),
-    };
-    
-    // Validate delivery fee calculation
-    const expectedDeliveryFee = Math.max(distance, 1) * 2000;
-    if (finance.deliveryFee !== expectedDeliveryFee) {
-      alert("Error: Perhitungan biaya pengiriman tidak valid");
-      return;
-    }
-    
-    const orderId = addOrder(orderData);
-    
-    clearCart();
-    
-    // Redirect based on payment method
-    if (paymentMethod === "cod") {
-      navigate(`/home/tracking/${orderId}`);
-    } else {
-      // Redirect to payment instruction page
-      navigate(`/home/payment/${orderId}`);
+        quantity: item.quantity,
+        item_total: item.price * item.quantity,
+        selected_variant: item.selectedVariant?.name ?? null,
+        selected_extras: item.selectedExtras.map(e => e.name),
+      }));
+
+      const orderId = await addOrder(orderData, orderItems);
+
+      clearCart();
+
+      // Redirect based on payment method
+      if (paymentMethod === "cod") {
+        navigate(`/home/tracking/${orderId}`);
+      } else {
+        navigate(`/home/payment/${orderId}`);
+      }
+    } catch (error) {
+      console.error("Failed to create order:", error);
+      alert("Gagal membuat pesanan. Silakan coba lagi.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -211,7 +230,7 @@ export function Checkout() {
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                     <p className="text-sm text-orange-800">
                       <MapPin className="w-4 h-4 inline mr-1" />
-                      Biaya pengiriman dihitung Rp 2.000/km
+                      Biaya pengiriman dihitung Rp {fees.cost_per_km.toLocaleString("id-ID")}/km
                     </p>
                   </div>
                 )}
@@ -287,14 +306,14 @@ export function Checkout() {
 
               {/* Items */}
               <div className="space-y-3 mb-6 pb-6 border-b border-gray-200">
-                {items.map((item) => (
-                  <div key={item.id} className="flex justify-between text-sm">
+                {items.map((item, index) => (
+                  <div key={`${item.productId}-${index}`} className="flex justify-between text-sm">
                     <div>
                       <div className="text-gray-900">
                         {item.name} x{item.quantity}
                       </div>
                       <div className="text-gray-600 text-xs">
-                        {item.storeName}
+                        {item.outletName}
                       </div>
                     </div>
                     <div className="text-gray-900 font-medium">
@@ -338,9 +357,10 @@ export function Checkout() {
 
               <button
                 onClick={handleOrder}
-                className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium"
+                disabled={isSubmitting}
+                className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Pesan Sekarang
+                {isSubmitting ? "Memproses..." : "Pesan Sekarang"}
               </button>
             </div>
           </div>

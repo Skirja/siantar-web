@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router";
-import { ArrowLeft, Phone, CheckCircle2, Clock, Truck, MapPin, Package, Navigation, Bell, CreditCard, AlertCircle, MessageCircle } from "lucide-react";
+import { ArrowLeft, Phone, CheckCircle2, Clock, Truck, MapPin, Package, Navigation, Bell, CreditCard, AlertCircle, MessageCircle, Loader2 } from "lucide-react";
 import { useData, OrderStatus } from "../../contexts/DataContext";
 import { toast } from "sonner";
 import { motion } from "motion/react";
 import { Logo } from "../../components/Logo";
+import { formatCurrency } from "../../utils/financeCalculations";
 
 const orderStatuses: Array<{ id: OrderStatus; label: string; icon: typeof Clock; description: string }> = [
   { id: "processing", label: "Diproses", icon: Clock, description: "Pesanan sedang diproses admin" },
@@ -17,41 +18,43 @@ const orderStatuses: Array<{ id: OrderStatus; label: string; icon: typeof Clock;
 export function OrderTracking() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const { orders, drivers } = useData();
-  const [currentOrder, setCurrentOrder] = useState(orders.find(o => o.id === orderId) || orders[0]);
-  const [previousStatus, setPreviousStatus] = useState(currentOrder?.status);
-  const [driverLocation, setDriverLocation] = useState(0); // 0-100 progress
+  const { orders, drivers, refreshOrders, loadingOrders } = useData();
+  const [previousStatus, setPreviousStatus] = useState<string | null>(null);
+  const [driverLocation, setDriverLocation] = useState(0);
 
-  // Auto-refresh every 3 seconds for real-time updates
+  const currentOrder = orders.find(o => o.id === orderId);
+
+  // Auto-refresh every 3 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      const updatedOrder = orders.find(o => o.id === orderId) || orders[0];
-      if (updatedOrder) {
-        // Check if status changed for notification
-        if (previousStatus && updatedOrder.status !== previousStatus) {
-          // Trigger notification
-          const statusInfo = orderStatuses.find(s => s.id === updatedOrder.status);
-          if (statusInfo) {
-            toast.success(statusInfo.label, {
-              description: statusInfo.description,
-              icon: <Bell className="w-5 h-5" />,
-              duration: 5000,
-            });
-          }
-        }
-        setPreviousStatus(updatedOrder.status);
-        setCurrentOrder(updatedOrder);
-      }
-    }, 3000); // Refresh every 3 seconds
+      refreshOrders();
+    }, 3000);
 
     return () => clearInterval(interval);
-  }, [orderId, orders, previousStatus]);
+  }, [refreshOrders]);
+
+  // Detect status changes and notify
+  useEffect(() => {
+    if (!currentOrder) return;
+
+    if (previousStatus && currentOrder.status !== previousStatus) {
+      const statusInfo = orderStatuses.find(s => s.id === currentOrder.status);
+      if (statusInfo) {
+        toast.success(statusInfo.label, {
+          description: statusInfo.description,
+          icon: <Bell className="w-5 h-5" />,
+          duration: 5000,
+        });
+      }
+    }
+    setPreviousStatus(currentOrder.status);
+  }, [currentOrder?.status]);
 
   // Simulate driver location progress based on status
   useEffect(() => {
     if (!currentOrder) return;
-    
-    const statusProgress: Record<OrderStatus, number> = {
+
+    const statusProgress: Record<string, number> = {
       "pending": 0,
       "processing": 10,
       "going-to-store": 30,
@@ -61,8 +64,7 @@ export function OrderTracking() {
     };
 
     const targetProgress = statusProgress[currentOrder.status] || 0;
-    
-    // Animate progress
+
     const step = targetProgress > driverLocation ? 1 : -1;
     const interval = setInterval(() => {
       setDriverLocation(prev => {
@@ -76,6 +78,14 @@ export function OrderTracking() {
 
     return () => clearInterval(interval);
   }, [currentOrder?.status]);
+
+  if (loadingOrders && !currentOrder) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+      </div>
+    );
+  }
 
   if (!currentOrder) {
     return (
@@ -97,7 +107,7 @@ export function OrderTracking() {
   }
 
   const currentStatusIndex = orderStatuses.findIndex(s => s.id === currentOrder.status);
-  const driver = currentOrder.driverId ? drivers.find(d => d.id === currentOrder.driverId) : null;
+  const driver = currentOrder.driver_id ? drivers.find(d => d.id === currentOrder.driver_id) : null;
 
   return (
     <div className="pb-20 md:pb-8 min-h-screen bg-gradient-to-b from-gray-50 to-white">
@@ -111,7 +121,7 @@ export function OrderTracking() {
         </Link>
 
         {/* Header Card */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-lg p-6 mb-6 text-white"
@@ -122,7 +132,7 @@ export function OrderTracking() {
                 Lacak Pesanan
               </h1>
               <p className="text-orange-100 mt-1">
-                Order ID: #{currentOrder.id}
+                Order ID: #{currentOrder.id.slice(0, 8)}
               </p>
             </div>
             <div className="text-right">
@@ -145,20 +155,19 @@ export function OrderTracking() {
           <div className="grid grid-cols-2 gap-4 mt-6">
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
               <p className="text-orange-100 text-sm mb-1">Dari</p>
-              <p className="font-semibold">{currentOrder.outlet.name}</p>
-              <p className="text-sm text-orange-100">{currentOrder.outlet.village}</p>
+              <p className="font-semibold">{currentOrder.outlet_name}</p>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
               <p className="text-orange-100 text-sm mb-1">Ke</p>
-              <p className="font-semibold">{currentOrder.customerName}</p>
-              <p className="text-sm text-orange-100">{currentOrder.customerVillage}</p>
+              <p className="font-semibold">{currentOrder.customer_name}</p>
+              <p className="text-sm text-orange-100">{currentOrder.customer_village}</p>
             </div>
           </div>
         </motion.div>
 
         {/* Payment Instruction Button for Transfer Orders */}
-        {currentOrder.paymentMethod === "transfer" && (
-          <motion.div 
+        {currentOrder.payment_method === "transfer" && (
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
@@ -176,10 +185,10 @@ export function OrderTracking() {
                   <div className="text-left">
                     <div className="font-bold text-lg mb-1">Instruksi Pembayaran</div>
                     <div className="text-blue-100 text-sm">
-                      {currentOrder.paymentStatus === "waiting_confirmation" 
+                      {currentOrder.payment_status === "waiting_confirmation"
                         ? "Menunggu konfirmasi admin"
-                        : currentOrder.paymentStatus === "confirmed"
-                        ? "✓ Pembayaran terkonfirmasi"
+                        : currentOrder.payment_status === "confirmed"
+                        ? "Pembayaran terkonfirmasi"
                         : "Lihat detail transfer & upload bukti"}
                     </div>
                   </div>
@@ -193,7 +202,7 @@ export function OrderTracking() {
         )}
 
         {/* Map Placeholder with Driver Movement */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -203,30 +212,26 @@ export function OrderTracking() {
             <Navigation className="w-5 h-5 text-orange-500" />
             Live Tracking
           </h3>
-          
-          {/* Simplified Map View */}
+
           <div className="relative h-48 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl overflow-hidden">
-            {/* Route Line */}
             <div className="absolute top-1/2 left-0 right-0 h-1 bg-gray-300 -translate-y-1/2">
-              <motion.div 
+              <motion.div
                 className="h-full bg-orange-500"
                 initial={{ width: "0%" }}
                 animate={{ width: `${driverLocation}%` }}
                 transition={{ duration: 0.5 }}
               />
             </div>
-            
-            {/* Store Icon (Start) */}
-            <motion.div 
+
+            <motion.div
               className="absolute left-8 top-1/2 -translate-y-1/2 bg-white p-3 rounded-full shadow-lg border-4 border-blue-500"
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
             >
               <Package className="w-6 h-6 text-blue-500" />
             </motion.div>
-            
-            {/* Driver Icon (Moving) */}
-            <motion.div 
+
+            <motion.div
               className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
               initial={{ left: "8%" }}
               animate={{ left: `${8 + (driverLocation * 0.84)}%` }}
@@ -246,9 +251,8 @@ export function OrderTracking() {
                 )}
               </div>
             </motion.div>
-            
-            {/* Customer Icon (End) */}
-            <motion.div 
+
+            <motion.div
               className="absolute right-8 top-1/2 -translate-y-1/2 bg-white p-3 rounded-full shadow-lg border-4 border-green-500"
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -257,7 +261,6 @@ export function OrderTracking() {
               <MapPin className="w-6 h-6 text-green-500" />
             </motion.div>
 
-            {/* Progress Text */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-md">
               <p className="text-sm font-medium text-gray-700">
                 Progress: {Math.round(driverLocation)}%
@@ -267,14 +270,14 @@ export function OrderTracking() {
         </motion.div>
 
         {/* Status Timeline */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="bg-white rounded-2xl shadow-lg p-6 mb-6"
         >
           <h3 className="font-semibold text-gray-900 mb-6">Status Pesanan</h3>
-          
+
           <div className="relative py-4">
             {orderStatuses.map((status, index) => {
               const Icon = status.icon;
@@ -282,14 +285,13 @@ export function OrderTracking() {
               const isActive = status.id === currentOrder.status;
 
               return (
-                <motion.div 
-                  key={status.id} 
+                <motion.div
+                  key={status.id}
                   className="relative"
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  {/* Connector Line */}
                   {index < orderStatuses.length - 1 && (
                     <div
                       className={`absolute left-6 top-14 w-0.5 h-20 transition-all duration-500 ${
@@ -298,7 +300,6 @@ export function OrderTracking() {
                     />
                   )}
 
-                  {/* Status Item */}
                   <div className="flex items-start gap-4 mb-4">
                     <motion.div
                       className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
@@ -323,7 +324,7 @@ export function OrderTracking() {
                         {status.description}
                       </p>
                       {isActive && (
-                        <motion.div 
+                        <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           className="inline-flex items-center gap-2 mt-2 text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full"
@@ -342,7 +343,7 @@ export function OrderTracking() {
 
         {/* Driver Info */}
         {driver && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
@@ -366,14 +367,14 @@ export function OrderTracking() {
                     </div>
                     <div className="mt-2">
                       <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
-                        currentOrder.status === "going-to-store" 
+                        currentOrder.status === "going-to-store"
                           ? "bg-blue-100 text-blue-700"
                           : currentOrder.status === "on-delivery"
                           ? "bg-green-100 text-green-700"
                           : "bg-gray-100 text-gray-700"
                       }`}>
                         <Navigation className="w-3 h-3" />
-                        {currentOrder.status === "going-to-store" 
+                        {currentOrder.status === "going-to-store"
                           ? "Menuju toko"
                           : currentOrder.status === "on-delivery"
                           ? "Sedang mengantar"
@@ -384,8 +385,7 @@ export function OrderTracking() {
                 </div>
               </div>
 
-              {/* Contact Buttons */}
-              {currentOrder.status !== "pending" && (
+              {currentOrder.status !== "pending" && driver.phone && (
                 <div className="grid grid-cols-2 gap-3">
                   <a
                     href={`tel:${driver.phone}`}
@@ -396,7 +396,7 @@ export function OrderTracking() {
                   </a>
                   <a
                     href={`https://wa.me/${driver.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                      `Halo ${driver.name}, saya ${currentOrder.customerName}.\n\nSaya ingin menanyakan pesanan saya:\nOrder ID: ${currentOrder.id}\nTujuan: ${currentOrder.customerVillage}\n\nTerima kasih!`
+                      `Halo ${driver.name}, saya ${currentOrder.customer_name}.\n\nSaya ingin menanyakan pesanan saya:\nOrder ID: ${currentOrder.id.slice(0, 8)}\nTujuan: ${currentOrder.customer_village}\n\nTerima kasih!`
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -412,7 +412,7 @@ export function OrderTracking() {
         )}
 
         {currentOrder.status === "pending" && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-6 mb-6"
@@ -430,7 +430,7 @@ export function OrderTracking() {
         )}
 
         {/* Order Details */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
@@ -438,32 +438,22 @@ export function OrderTracking() {
         >
           <h3 className="font-semibold text-gray-900 mb-4">Detail Pesanan</h3>
           <div className="space-y-3">
-            {currentOrder.items.map((item, idx) => (
-              <div key={idx} className="flex justify-between text-sm">
-                <span className="text-gray-600">
-                  {item.name} x{item.quantity}
-                </span>
-                <span className="text-gray-900 font-medium">
-                  Rp {(item.price * item.quantity).toLocaleString("id-ID")}
-                </span>
-              </div>
-            ))}
             <div className="border-t pt-3 mt-3">
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-gray-600">Subtotal</span>
-                <span className="text-gray-900">Rp {currentOrder.subtotal.toLocaleString("id-ID")}</span>
+                <span className="text-gray-900">{formatCurrency(currentOrder.subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-gray-600">Biaya Layanan</span>
-                <span className="text-gray-900">Rp {currentOrder.serviceFee.toLocaleString("id-ID")}</span>
+                <span className="text-gray-900">{formatCurrency(currentOrder.service_fee)}</span>
               </div>
               <div className="flex justify-between text-sm mb-3">
                 <span className="text-gray-600">Biaya Pengiriman</span>
-                <span className="text-gray-900">Rp {currentOrder.deliveryFee.toLocaleString("id-ID")}</span>
+                <span className="text-gray-900">{formatCurrency(currentOrder.delivery_fee)}</span>
               </div>
               <div className="flex justify-between font-semibold text-lg">
                 <span className="text-gray-900">Total</span>
-                <span className="text-orange-600">Rp {currentOrder.total.toLocaleString("id-ID")}</span>
+                <span className="text-orange-600">{formatCurrency(currentOrder.total)}</span>
               </div>
             </div>
           </div>

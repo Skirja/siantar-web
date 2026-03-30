@@ -3,7 +3,7 @@ import { X, Printer, Download, Image as ImageIcon } from "lucide-react";
 import { Order } from "../contexts/DataContext";
 import { formatCurrency } from "../utils/financeCalculations";
 import html2canvas from "html2canvas";
-import logoImage from "figma:asset/5522bec198d2c607245bbb83c121601db5647d0a.png";
+import { toast } from "sonner";
 
 interface InvoiceModalProps {
   order: Order;
@@ -92,7 +92,7 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
       printWindow.document.close();
     } catch (error) {
       console.error("Error generating print image:", error);
-      alert("Gagal membuat preview print. Silakan coba lagi.");
+      toast.error("Gagal membuat preview print. Silakan coba lagi.");
     }
   };
 
@@ -116,17 +116,17 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
       link.click();
     } catch (error) {
       console.error("Error generating image:", error);
-      alert("Gagal membuat gambar. Silakan coba lagi.");
+      toast.error("Gagal membuat gambar. Silakan coba lagi.");
     }
   };
 
-  const invoiceDate = new Date(order.timestamp).toLocaleDateString("id-ID", {
+  const invoiceDate = new Date(order.created_at).toLocaleDateString("id-ID", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
 
-  const invoiceTime = new Date(order.timestamp).toLocaleTimeString("id-ID", {
+  const invoiceTime = new Date(order.created_at).toLocaleTimeString("id-ID", {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -218,9 +218,8 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
               boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
             }}
           >
-            {/* Header - Logo & Store Name */}
+            {/* Header - Store Name */}
             <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-              <img src={logoImage} alt="Logo" style={{ width: '50px', height: '50px', marginBottom: '4px' }} />
               <div style={{ fontSize: '18px', fontWeight: 'bold', letterSpacing: '2px' }}>
                 SIANTER
               </div>
@@ -239,17 +238,14 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
 
             {/* Outlet Name */}
             <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '8px' }}>
-              {order.outlet.name}
-            </div>
-            <div style={{ textAlign: 'center', fontSize: '9px', marginBottom: '12px' }}>
-              {order.outlet.village}
+              {order.outlet_name}
             </div>
 
             {/* Order Info */}
             <div style={{ marginBottom: '12px', fontSize: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
                 <span>Order ID:</span>
-                <span style={{ fontWeight: 'bold' }}>#{order.id}</span>
+                <span style={{ fontWeight: 'bold' }}>#{order.id.slice(0, 8)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
                 <span>Tanggal:</span>
@@ -271,9 +267,9 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
               <>
                 <div style={{ marginBottom: '8px', fontSize: '10px' }}>
                   <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>PELANGGAN:</div>
-                  <div>{order.customerName}</div>
-                  <div>{order.customerPhone}</div>
-                  <div style={{ fontSize: '9px' }}>{order.customerVillage}</div>
+                  <div>{order.customer_name}</div>
+                  <div>{order.customer_phone}</div>
+                  <div style={{ fontSize: '9px' }}>{order.customer_village}</div>
                   <div style={{ fontSize: '9px' }}>{order.address}</div>
                 </div>
 
@@ -284,29 +280,14 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
               </>
             )}
 
-            {/* Items List */}
+            {/* Items List - display from order data */}
             <div style={{ marginBottom: '8px' }}>
-              {order.items.map((item, index) => (
-                <div key={index} style={{ marginBottom: '8px' }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '2px' }}>
-                    {item.name}
-                  </div>
-                  {item.selectedSize && (
-                    <div style={{ fontSize: '9px', marginLeft: '4px' }}>
-                      Size: {item.selectedSize}
-                    </div>
-                  )}
-                  {item.selectedExtras && item.selectedExtras.length > 0 && (
-                    <div style={{ fontSize: '9px', marginLeft: '4px' }}>
-                      Extra: {item.selectedExtras.join(", ")}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginTop: '2px' }}>
-                    <span>  {item.quantity} x {formatCurrency(item.price)}</span>
-                    <span style={{ fontWeight: 'bold' }}>{formatCurrency(item.price * item.quantity)}</span>
-                  </div>
+              <div style={{ marginBottom: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginTop: '2px' }}>
+                  <span>Subtotal (items):</span>
+                  <span style={{ fontWeight: 'bold' }}>{formatCurrency(order.subtotal)}</span>
                 </div>
-              ))}
+              </div>
             </div>
 
             {/* Divider */}
@@ -325,18 +306,20 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span>Service Fee:</span>
-                    <span>{formatCurrency(order.serviceFee)}</span>
+                    <span>{formatCurrency(order.service_fee)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span>Delivery ({order.distance}km):</span>
-                    <span>{formatCurrency(order.deliveryFee)}</span>
+                    <span>{formatCurrency(order.delivery_fee)}</span>
                   </div>
-                  {order.isMinimumChargeApplied && (
-                    <div style={{ fontSize: '8px', fontStyle: 'italic', marginBottom: '4px', textAlign: 'right' }}>
-                      *Min. 1km charge
-                    </div>
-                  )}
                 </>
+              )}
+
+              {type === "outlet" && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span>Admin Fee:</span>
+                  <span>-{formatCurrency(order.admin_fee)}</span>
+                </div>
               )}
             </div>
 
@@ -349,12 +332,12 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
               <span>
                 {type === "customer"
                   ? formatCurrency(order.total)
-                  : formatCurrency(order.subtotal)}
+                  : formatCurrency(order.subtotal - order.admin_fee)}
               </span>
             </div>
 
             {/* Transfer info for customer */}
-            {type === "customer" && order.paymentMethod === "transfer" && order.uniquePaymentCode && (
+            {type === "customer" && order.payment_method === "transfer" && order.unique_payment_code && (
               <>
                 <div style={{ fontSize: '8px', overflow: 'hidden', marginBottom: '8px' }}>
                   {dashedLine}
@@ -364,7 +347,7 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
                     Transfer ke:
                   </div>
                   <div style={{ fontSize: '12px', fontWeight: 'bold' }}>
-                    {formatCurrency(order.finalPaymentAmount || order.total)}
+                    {formatCurrency(order.final_payment_amount || order.total)}
                   </div>
                   <div style={{ fontSize: '8px', marginTop: '2px' }}>
                     (termasuk kode unik)
@@ -376,21 +359,21 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
             {/* Payment Method */}
             <div style={{ textAlign: 'center', fontSize: '10px', marginBottom: '12px' }}>
               <div>
-                Metode: {order.paymentMethod === "cod" ? "Cash on Delivery" : `Transfer ${order.paymentProvider || ""}`}
+                Metode: {order.payment_method === "cod" ? "Cash on Delivery" : `Transfer ${order.payment_provider || ""}`}
               </div>
-              {order.paymentMethod === "transfer" && order.paymentStatus && (
+              {order.payment_method === "transfer" && order.payment_status && (
                 <div style={{ marginTop: '2px', fontSize: '9px' }}>
                   Status: {
-                    order.paymentStatus === "confirmed" ? "✓ Terkonfirmasi" :
-                    order.paymentStatus === "waiting_confirmation" ? "⏳ Menunggu Konfirmasi" :
-                    order.paymentStatus === "rejected" ? "✗ Ditolak" :
+                    order.payment_status === "confirmed" ? "✓ Terkonfirmasi" :
+                    order.payment_status === "waiting_confirmation" ? "⏳ Menunggu Konfirmasi" :
+                    order.payment_status === "rejected" ? "✗ Ditolak" :
                     "⏳ Menunggu Pembayaran"
                   }
                 </div>
               )}
-              {order.driverName && (
+              {order.driver_name && (
                 <div style={{ marginTop: '4px' }}>
-                  Driver: {order.driverName}
+                  Driver: {order.driver_name}
                 </div>
               )}
             </div>
@@ -410,9 +393,9 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
               ) : (
                 <>
                   <div>INVOICE OUTLET</div>
-                  <div style={{ marginTop: '4px' }}>Total: {formatCurrency(order.subtotal)}</div>
+                  <div style={{ marginTop: '4px' }}>Total: {formatCurrency(order.subtotal - order.admin_fee)}</div>
                   <div style={{ fontSize: '8px', marginTop: '4px' }}>
-                    *Tidak termasuk biaya delivery
+                    *Setelah dipotong biaya admin
                   </div>
                 </>
               )}
