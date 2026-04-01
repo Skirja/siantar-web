@@ -26,7 +26,7 @@ export function OutletMenuManagement() {
     price: 0,
     discount_price: 0,
     description: "",
-    category: "Makanan" as "Makanan" | "Minuman",
+    category: "Bakso & Mie Ayam" as string,
     variants: [] as ProductVariant[],
     extras: [] as ProductExtra[],
     image_url: "" as string | null,
@@ -62,7 +62,7 @@ export function OutletMenuManagement() {
       price: 0,
       discount_price: 0,
       description: "",
-      category: "Makanan",
+      category: "Bakso & Mie Ayam",
       variants: [],
       extras: [],
       image_url: null,
@@ -78,7 +78,7 @@ export function OutletMenuManagement() {
       price: menu.price,
       discount_price: menu.discount_price || 0,
       description: menu.description || "",
-      category: menu.category as "Makanan" | "Minuman",
+      category: menu.category,
       variants: menu.variants || [],
       extras: menu.extras || [],
       image_url: menu.image_url,
@@ -196,7 +196,7 @@ export function OutletMenuManagement() {
   };
 
   const handleAddExtra = () => {
-    if (!extraForm.name || !extraForm.price) return;
+    if (!extraForm.name) return;
     const newExtra: ProductExtra = {
       id: `temp_${Date.now()}`,
       name: extraForm.name,
@@ -470,7 +470,7 @@ export function OutletMenuManagement() {
                   </label>
                   <input
                     type="number"
-                    value={menuForm.price}
+                    value={menuForm.price === 0 ? "" : menuForm.price}
                     onChange={(e) => setMenuForm({ ...menuForm, price: parseInt(e.target.value) || 0 })}
                     placeholder="15000"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -482,7 +482,7 @@ export function OutletMenuManagement() {
                   </label>
                   <input
                     type="number"
-                    value={menuForm.discount_price}
+                    value={menuForm.discount_price === 0 ? "" : menuForm.discount_price}
                     onChange={(e) => setMenuForm({ ...menuForm, discount_price: parseInt(e.target.value) || 0 })}
                     placeholder="12000"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -496,11 +496,38 @@ export function OutletMenuManagement() {
                 </label>
                 <select
                   value={menuForm.category}
-                  onChange={(e) => setMenuForm({ ...menuForm, category: e.target.value as any })}
+                  onChange={(e) => setMenuForm({ ...menuForm, category: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                 >
-                  <option value="Makanan">Makanan</option>
-                  <option value="Minuman">Minuman</option>
+                  <optgroup label="Makanan Utama">
+                    <option value="Bakso & Mie Ayam">Bakso & Mie Ayam</option>
+                    <option value="Nasi Goreng & Mie Goreng">Nasi Goreng & Mie Goreng</option>
+                    <option value="Ayam Bakar & Ayam Goreng">Ayam Bakar & Ayam Goreng</option>
+                    <option value="Bebek & Ikan">Bebek & Ikan</option>
+                    <option value="Seafood">Seafood</option>
+                    <option value="Soto & Sop">Soto & Sop</option>
+                    <option value="Pecel Lele / Lalapan">Pecel Lele / Lalapan</option>
+                    <option value="Rice Bowl & Nasi Kotak">Rice Bowl & Nasi Kotak</option>
+                    <option value="Sate & Grill">Sate & Grill</option>
+                    <option value="Martabak & Terang Bulan">Martabak & Terang Bulan</option>
+                  </optgroup>
+                  <optgroup label="Snack & Jajanan">
+                    <option value="Snack & Camilan">Snack & Camilan</option>
+                    <option value="Gorengan">Gorengan</option>
+                    <option value="Cilok, Bakso Bakar & Jajanan">Cilok, Bakso Bakar & Jajanan</option>
+                    <option value="Kue & Dessert">Kue & Dessert</option>
+                    <option value="Roti & Bakery">Roti & Bakery</option>
+                  </optgroup>
+                  <optgroup label="Minuman">
+                    <option value="Minuman Dingin">Minuman Dingin</option>
+                    <option value="Kopi & Teh">Kopi & Teh</option>
+                    <option value="Jus & Minuman Buah">Jus & Minuman Buah</option>
+                    <option value="Es Campur / Es Tradisional">Es Campur / Es Tradisional</option>
+                  </optgroup>
+                  <optgroup label="Lainnya">
+                    <option value="Frozen Food">Frozen Food</option>
+                    <option value="Catering / Nasi Box">Catering / Nasi Box</option>
+                  </optgroup>
                 </select>
               </div>
 
@@ -565,7 +592,7 @@ export function OutletMenuManagement() {
                       />
                       <input
                         type="number"
-                        value={variantForm.price_adjustment}
+                        value={variantForm.price_adjustment === 0 ? "" : variantForm.price_adjustment}
                         onChange={(e) => setVariantForm({ ...variantForm, price_adjustment: parseInt(e.target.value) || 0 })}
                         placeholder="Tambahan harga"
                         className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
@@ -637,7 +664,7 @@ export function OutletMenuManagement() {
                       />
                       <input
                         type="number"
-                        value={extraForm.price}
+                        value={extraForm.price === 0 ? "" : extraForm.price}
                         onChange={(e) => setExtraForm({ ...extraForm, price: parseInt(e.target.value) || 0 })}
                         placeholder="Harga"
                         className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"

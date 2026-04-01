@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { User, Phone, Plus, Edit2, Copy, Check, AlertCircle, Shield, Loader2 } from "lucide-react";
+import { User, Phone, Plus, Edit2, Copy, Check, AlertCircle, Shield, Loader2, Trash2, Mail, Eye, EyeOff, Wallet } from "lucide-react";
 import { useData, Profile } from "../contexts/DataContext";
 import { generateSecurePassword } from "../utils/credentialGenerator";
+import { formatCurrency } from "../utils/financeCalculations";
 import { toast } from "sonner";
 
 export function DriverManagement() {
-  const { drivers, orders, addDriver, updateDriver, deactivateDriver, loadingDrivers } = useData();
+  const { drivers, orders, addDriver, updateDriver, deactivateDriver, deleteDriver, updateDriverBalance, loadingDrivers } = useData();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
@@ -14,6 +15,14 @@ export function DriverManagement() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [editingDriver, setEditingDriver] = useState<Profile | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
+  const [topUpDriver, setTopUpDriver] = useState<Profile | null>(null);
+  const [topUpAmount, setTopUpAmount] = useState(100000);
+  const [topUpLoading, setTopUpLoading] = useState(false);
+
+  // Store credentials per driver (email stored in profile, password shown once on creation)
+  const [driverCredentials, setDriverCredentials] = useState<Record<string, { email: string; password: string }>>({});
 
   const [driverForm, setDriverForm] = useState({
     name: "",
@@ -31,8 +40,8 @@ export function DriverManagement() {
 
     setSaving(true);
     try {
-      await addDriver(driverForm.name, driverForm.phone, password);
-      setGeneratedCredentials({ email, password });
+      const creds = await addDriver(driverForm.name, driverForm.phone, password);
+      setGeneratedCredentials({ email: creds.email, password: creds.password });
       setShowAddModal(false);
       setShowCredentialsModal(true);
       setDriverForm({ name: "", phone: "" });
@@ -104,6 +113,35 @@ export function DriverManagement() {
       } catch (error: any) {
         toast.error(error.message || "Gagal mengubah status driver");
       }
+    }
+  };
+
+  const handleDeleteDriver = async (driver: Profile) => {
+    if (confirm(`Yakin ingin MENGHAPUS driver ${driver.name}? Tindakan ini tidak dapat dibatalkan.`)) {
+      setDeleting(driver.id);
+      try {
+        await deleteDriver(driver.id);
+        toast.success("Driver berhasil dihapus");
+      } catch (error: any) {
+        toast.error(error.message || "Gagal menghapus driver");
+      } finally {
+        setDeleting(null);
+      }
+    }
+  };
+
+  const handleTopUp = async () => {
+    if (!topUpDriver || topUpAmount <= 0) return;
+    setTopUpLoading(true);
+    try {
+      await updateDriverBalance(topUpDriver.id, topUpAmount);
+      toast.success(`Berhasil top up ${formatCurrency(topUpAmount)} untuk ${topUpDriver.name}`);
+      setTopUpDriver(null);
+      setTopUpAmount(100000);
+    } catch (error: any) {
+      toast.error(error.message || "Gagal top up saldo");
+    } finally {
+      setTopUpLoading(false);
     }
   };
 
@@ -203,11 +241,72 @@ export function DriverManagement() {
                   <div className="text-xs text-gray-600 mb-1">Selesai</div>
                   <div className="text-xl font-bold text-green-600">{stats.completed}</div>
                 </div>
-                <div className="bg-orange-50 rounded-lg p-3">
-                  <div className="text-xs text-gray-600 mb-1">Aktif</div>
-                  <div className="text-xl font-bold text-orange-600">{stats.active}</div>
+                <div className={`rounded-lg p-3 ${((driver as any).balance ?? 0) < 30000 ? "bg-red-50" : "bg-purple-50"}`}>
+                  <div className="text-xs text-gray-600 mb-1">Saldo</div>
+                  <div className={`text-lg font-bold ${((driver as any).balance ?? 0) < 30000 ? "text-red-600" : "text-purple-600"}`}>
+                    {formatCurrency((driver as any).balance ?? 0)}
+                  </div>
                 </div>
               </div>
+
+              {/* Top Up Button */}
+              <div className="mb-4">
+                <button
+                  onClick={() => { setTopUpDriver(driver); setTopUpAmount(100000); }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-sm"
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span>Top Up Saldo</span>
+                </button>
+              </div>
+
+              {/* Driver Credentials */}
+              {(driver as any).email && (
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Mail className="w-4 h-4 text-gray-500" />
+                    <span className="text-xs font-medium text-gray-600">Akun Login</span>
+                  </div>
+                  <div className="text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">Email:</span>
+                      <span className="font-mono text-gray-900">{(driver as any).email}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText((driver as any).email);
+                          toast.success("Email disalin!");
+                        }}
+                        className="p-1 hover:bg-gray-200 rounded transition-colors"
+                      >
+                        <Copy className="w-3 h-3 text-gray-500" />
+                      </button>
+                    </div>
+                    {driverCredentials[driver.id] && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-gray-500">Password:</span>
+                        <span className="font-mono text-gray-900">
+                          {showPasswords[driver.id] ? driverCredentials[driver.id].password : "••••••••"}
+                        </span>
+                        <button
+                          onClick={() => setShowPasswords({ ...showPasswords, [driver.id]: !showPasswords[driver.id] })}
+                          className="p-1 hover:bg-gray-200 rounded transition-colors"
+                        >
+                          {showPasswords[driver.id] ? <EyeOff className="w-3 h-3 text-gray-500" /> : <Eye className="w-3 h-3 text-gray-500" />}
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(driverCredentials[driver.id].password);
+                            toast.success("Password disalin!");
+                          }}
+                          className="p-1 hover:bg-gray-200 rounded transition-colors"
+                        >
+                          <Copy className="w-3 h-3 text-gray-500" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex gap-2">
@@ -222,12 +321,23 @@ export function DriverManagement() {
                   onClick={() => handleDeactivateDriver(driver)}
                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm ${
                     driver.is_active
-                      ? "bg-red-50 text-red-600 hover:bg-red-100"
+                      ? "bg-yellow-50 text-yellow-600 hover:bg-yellow-100"
                       : "bg-green-50 text-green-600 hover:bg-green-100"
                   }`}
                 >
                   <Shield className="w-4 h-4" />
                   <span>{driver.is_active ? "Nonaktifkan" : "Aktifkan"}</span>
+                </button>
+                <button
+                  onClick={() => handleDeleteDriver(driver)}
+                  disabled={deleting === driver.id}
+                  className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm disabled:opacity-50"
+                >
+                  {deleting === driver.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -478,6 +588,60 @@ export function DriverManagement() {
                 className="flex-1 px-4 py-3 bg-white text-orange-600 rounded-xl hover:bg-orange-50 transition-colors font-medium"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Top Up Modal */}
+      {topUpDriver && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setTopUpDriver(null)} />
+          <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Top Up Saldo</h2>
+            <p className="text-sm text-gray-600 mb-4">Driver: <span className="font-medium">{topUpDriver.name}</span></p>
+            <p className="text-sm text-gray-600 mb-4">Saldo saat ini: <span className="font-bold">{formatCurrency((topUpDriver as any).balance ?? 0)}</span></p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Jumlah Top Up (Rp)</label>
+                <input
+                  type="number"
+                  value={topUpAmount}
+                  onChange={(e) => setTopUpAmount(parseInt(e.target.value) || 0)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                {[50000, 100000, 200000, 500000].map((amt) => (
+                  <button
+                    key={amt}
+                    onClick={() => setTopUpAmount(amt)}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      topUpAmount === amt ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {formatCurrency(amt)}
+                  </button>
+                ))}
+              </div>
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <div className="text-sm text-gray-600">Saldo setelah top up:</div>
+                <div className="text-xl font-bold text-blue-600">
+                  {formatCurrency(((topUpDriver as any).balance ?? 0) + topUpAmount)}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setTopUpDriver(null)} className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium">
+                Batal
+              </button>
+              <button
+                onClick={handleTopUp}
+                disabled={topUpLoading || topUpAmount <= 0}
+                className="flex-1 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {topUpLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wallet className="w-5 h-5" />}
+                <span>Top Up</span>
               </button>
             </div>
           </div>

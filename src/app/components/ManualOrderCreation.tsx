@@ -31,18 +31,16 @@ interface ManualOrderCreationProps {
 }
 
 const VILLAGES: string[] = [
-  "Desa Air Dua",
-  "Desa Balai Riam (Pusat Kecamatan)",
-  "Desa Bangun Jaya",
-  "Desa Bukit Sungkai",
-  "Desa Jihing (Jihing Janga area)",
-  "Desa Lupu Peruca",
-  "Desa Pempaning",
   "Desa Sekuningan Baru",
+  "Desa Bukit Sungkai",
+  "Desa Bangun Jaya",
+  "Desa Balai Riam (Pusat Kecamatan)",
+  "Desa Natai Kondang",
+  "Desa Lupu Peruca",
 ];
 
 export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCreationProps) {
-  const { outlets, products, getProductsByOutlet, addOrder, getDistance, feeSettings } = useData();
+  const { outlets, products, getProductsByOutlet, addOrder, getDistance, getDeliveryFee, feeSettings } = useData();
 
   // Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -132,7 +130,8 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
   // Calculate totals
   const subtotal = orderItems.reduce((sum, item) => sum + item.itemTotal, 0);
   const distance = customerVillage && selectedOutlet ? getDistance(customerVillage, selectedOutlet.village) : 0;
-  const finance = calculateOrderFinance(subtotal, distance, fees);
+  const deliveryFeeFromMatrix = customerVillage && selectedOutlet ? getDeliveryFee(customerVillage, selectedOutlet.village) : 0;
+  const finance = calculateOrderFinance(subtotal, distance, fees, deliveryFeeFromMatrix);
   
   // Generate unique payment code for transfer
   const uniquePaymentCode = paymentMethod === "transfer" ? generateUniquePaymentCode() : undefined;
@@ -487,7 +486,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                             <p className="text-sm text-gray-500 mt-1">{outlet.village}</p>
                             <div className="flex items-center gap-2 mt-2">
                               <span className="text-xs px-2 py-1 bg-gray-100 rounded">
-                                {outlet.category === "food" ? "🍽️ Makanan" : outlet.category === "drink" ? "☕ Minuman" : "📦 Paket"}
+                                {outlet.category}
                               </span>
                               <span className="text-xs text-gray-500">
                                 {distanceToCustomer} km

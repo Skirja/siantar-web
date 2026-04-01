@@ -12,9 +12,18 @@ export function StoreDetail() {
   const { outlets, getProductsByOutlet, loadingProducts } = useData();
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [selectedExtras, setSelectedExtras] = useState<Record<string, string[]>>({});
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   const outlet = outlets.find((o) => o.id === storeId);
   const outletProducts = storeId ? getProductsByOutlet(storeId) : [];
+
+  // Get unique categories from products
+  const categories = Array.from(new Set(outletProducts.map((p) => p.category)));
+
+  // Filter products by active category
+  const filteredProducts = activeCategory
+    ? outletProducts.filter((p) => p.category === activeCategory)
+    : outletProducts;
 
   if (!outlet || !storeId) {
     return (
@@ -33,6 +42,19 @@ export function StoreDetail() {
   }
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  const getProductCartQuantity = (product: ProductWithDetails) => {
+    const variantId = selectedVariants[product.id];
+    const extraIds = (selectedExtras[product.id] || []).sort();
+    return items
+      .filter((item) => {
+        if (item.productId !== product.id) return false;
+        if (item.selectedVariant?.id !== (variantId || undefined)) return false;
+        const itemExtraIds = item.selectedExtras.map((e) => e.id).sort();
+        return JSON.stringify(itemExtraIds) === JSON.stringify(extraIds);
+      })
+      .reduce((sum, item) => sum + item.quantity, 0);
+  };
 
   const calculateProductPrice = (product: ProductWithDetails) => {
     let price = product.discount_price ?? product.price;
@@ -102,14 +124,43 @@ export function StoreDetail() {
 
       {/* Menu List */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">Menu</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Menu</h2>
+
+        {/* Category Tabs */}
+        {categories.length > 1 && (
+          <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+            <button
+              onClick={() => setActiveCategory(null)}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                activeCategory === null
+                  ? "bg-orange-500 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              Semua
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                  activeCategory === cat
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
 
         {loadingProducts ? (
           <div className="flex justify-center items-center py-16">
             <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
           </div>
-        ) : outletProducts.length === 0 ? (
-          /* Empty State - No Products */
+        ) : filteredProducts.length === 0 ? (
+          /* Empty State - No Products in Category */
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -119,10 +170,13 @@ export function StoreDetail() {
               <ShoppingCart className="w-16 h-16 text-orange-400" />
             </div>
             <h3 className="text-2xl font-bold text-gray-900 mb-3">
-              Belum ada menu
+              {activeCategory ? `Belum ada menu ${activeCategory}` : "Belum ada menu"}
             </h3>
             <p className="text-gray-600 max-w-md mx-auto mb-6">
-              Outlet ini belum menambahkan menu. Silakan coba outlet lain atau kembali nanti.
+              {activeCategory
+                ? `Outlet ini belum menambahkan menu untuk kategori ${activeCategory}.`
+                : "Outlet ini belum menambahkan menu. Silakan coba outlet lain atau kembali nanti."
+              }
             </p>
             <Link
               to="/home"
@@ -135,7 +189,7 @@ export function StoreDetail() {
         ) : (
           /* Product List */
           <div className="space-y-3">
-            {outletProducts.map((product) => (
+            {filteredProducts.map((product) => (
               <div
                 key={product.id}
                 className="bg-white rounded-xl shadow-sm p-4 flex gap-4 hover:shadow-md transition-shadow"
@@ -227,13 +281,25 @@ export function StoreDetail() {
                   )}
                 </div>
 
-                <button
-                  onClick={() => handleAddToCart(product)}
-                  disabled={!product.is_available}
-                  className="flex items-center justify-center w-10 h-10 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex-shrink-0 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  <Plus className="w-5 h-5" />
-                </button>
+                <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => handleAddToCart(product)}
+                    disabled={!product.is_available}
+                    className="flex items-center justify-center w-10 h-10 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed relative"
+                  >
+                    <Plus className="w-5 h-5" />
+                    {getProductCartQuantity(product) > 0 && (
+                      <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                        {getProductCartQuantity(product)}
+                      </span>
+                    )}
+                  </button>
+                  {getProductCartQuantity(product) > 0 && (
+                    <span className="text-xs text-orange-600 font-medium">
+                      {getProductCartQuantity(product)}x
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>

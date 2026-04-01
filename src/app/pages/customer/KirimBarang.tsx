@@ -19,14 +19,12 @@ import { toast } from "sonner";
 import type { TablesInsert } from "../../lib/database.types";
 
 const VILLAGES: Village[] = [
-  "Desa Air Dua",
-  "Desa Balai Riam (Pusat Kecamatan)",
-  "Desa Bangun Jaya",
-  "Desa Bukit Sungkai",
-  "Desa Jihing (Jihing Janga area)",
-  "Desa Lupu Peruca",
-  "Desa Pempaning",
   "Desa Sekuningan Baru",
+  "Desa Bukit Sungkai",
+  "Desa Bangun Jaya",
+  "Desa Balai Riam (Pusat Kecamatan)",
+  "Desa Natai Kondang",
+  "Desa Lupu Peruca",
 ];
 
 const PACKAGE_CATEGORIES = [
@@ -39,7 +37,7 @@ const PACKAGE_CATEGORIES = [
 
 export function KirimBarang() {
   const navigate = useNavigate();
-  const { addOrder, getDistance, feeSettings, outlets } = useData();
+  const { addOrder, getDistance, getDeliveryFee, feeSettings, outlets } = useData();
 
   // Sender (Pengirim) Details
   const [senderName, setSenderName] = useState("");
@@ -81,10 +79,13 @@ export function KirimBarang() {
   };
 
   // Calculate distance and pricing
-  const distance =
+  const rawDistance =
     fromVillage && toVillage ? getDistance(fromVillage, toVillage) : 0;
+  const deliveryFeeFromMatrix =
+    fromVillage && toVillage ? getDeliveryFee(fromVillage, toVillage) : 0;
+  const distance = rawDistance;
   const subtotal = 0; // No item subtotal for delivery service
-  const finance = calculateOrderFinance(subtotal, distance, fees);
+  const finance = calculateOrderFinance(subtotal, distance, fees, deliveryFeeFromMatrix);
 
   // Display weight (minimum 1kg)
   const displayWeight =
@@ -111,11 +112,6 @@ export function KirimBarang() {
 
     if (!packageCategory || !estimatedWeight) {
       toast.error("Mohon lengkapi detail barang");
-      return;
-    }
-
-    if (fromVillage === toVillage) {
-      toast.error("Desa pengirim dan penerima tidak boleh sama");
       return;
     }
 
@@ -571,7 +567,7 @@ export function KirimBarang() {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Jarak</span>
                       <span className="font-medium text-gray-900">
-                        {distance} km
+                        {rawDistance > 0 ? `${rawDistance} km` : '-'}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">

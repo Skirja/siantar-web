@@ -44,11 +44,12 @@ export interface OrderFinance {
 export function calculateOrderFinance(
   subtotal: number,
   distance: number,
-  fees: FeeSettings = getDefaultFeeSettings()
+  fees: FeeSettings = getDefaultFeeSettings(),
+  directDeliveryFee?: number
 ): OrderFinance {
   const chargedDistance = Math.max(distance, fees.min_distance_km);
   const isMinimumChargeApplied = distance < fees.min_distance_km;
-  const deliveryFee = chargedDistance * fees.cost_per_km;
+  const deliveryFee = directDeliveryFee !== undefined ? directDeliveryFee : chargedDistance * fees.cost_per_km;
   const driverSharePct = fees.driver_share_pct / 100;
   const adminSharePct = fees.admin_share_pct / 100;
   const driverEarning = deliveryFee * driverSharePct;

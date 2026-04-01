@@ -67,9 +67,10 @@ interface DataContextType {
   loadingOrders: boolean;
 
   drivers: Profile[];
-  addDriver: (name: string, phone: string, password: string) => Promise<void>;
+  addDriver: (name: string, phone: string, password: string) => Promise<{ email: string; password: string }>;
   updateDriver: (id: string, driver: Partial<Profile>) => Promise<void>;
   deactivateDriver: (id: string) => Promise<void>;
+  deleteDriver: (id: string) => Promise<void>;
   refreshDrivers: () => Promise<void>;
   loadingDrivers: boolean;
 
@@ -81,6 +82,9 @@ interface DataContextType {
 
   distanceMatrix: DistanceMatrix[];
   getDistance: (fromVillage: string, toVillage: string) => number;
+  getDeliveryFee: (fromVillage: string, toVillage: string) => number;
+  refreshDistanceMatrix: () => Promise<void>;
+  updateDriverBalance: (driverId: string, amount: number) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -313,7 +317,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [refreshOrders]);
 
   // Driver CRUD
-  const addDriver = useCallback(async (name: string, phone: string, password: string) => {
+  const addDriver = useCallback(async (name: string, phone: string, password: string): Promise<{ email: string; password: string }> => {
     // Create auth user with admin API
     const email = `driver_${name.toLowerCase().replace(/[^a-z0-9]/g, "")}@siantar.id`;
     
@@ -332,7 +336,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
     if (!data.user) throw new Error("Failed to create driver user");
 
+    // Store email in profile for display
+    await supabase
+      .from("profiles")
+      .update({ email } as any)
+      .eq("id", data.user.id);
+
     await refreshDrivers();
+    return { email, password };
   }, [refreshDrivers]);
 
   const updateDriver = useCallback(async (id: string, driver: Partial<Profile>) => {
@@ -347,6 +358,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await refreshDrivers();
   }, [refreshDrivers]);
 
+  const deleteDriver = useCallback(async (id: string) => {
+    const { error } = await supabase.from("profiles").delete().eq("id", id);
+    if (error) throw error;
+    await refreshDrivers();
+  }, [refreshDrivers]);
+
   // Distance calculation
   const getDistance = useCallback((fromVillage: string, toVillage: string): number => {
     const entry = distanceMatrix.find(
@@ -354,6 +371,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
     );
     return entry?.distance_km ?? 0;
   }, [distanceMatrix]);
+
+  // Delivery fee lookup from distance_matrix.fee
+  const getDeliveryFee = useCallback((fromVillage: string, toVillage: string): number => {
+    const entry = distanceMatrix.find(
+      (d) => d.from_village === fromVillage && d.to_village === toVillage
+    );
+    return entry?.fee ?? 0;
+  }, [distanceMatrix]);
+
+  // Update driver balance (positive = top up, negative = deduct)
+  const updateDriverBalance = useCallback(async (driverId: string, amount: number) => {
+    // Get current balance
+    const { data: driver } = await supabase.from("profiles").select("balance").eq("id", driverId).single();
+    if (!driver) throw new Error("Driver tidak ditemukan");
+    const newBalance = (driver.balance || 0) + amount;
+    if (newBalance < 0) throw new Error("Saldo tidak mencukupi");
+    const { error } = await supabase.from("profiles").update({ balance: newBalance }).eq("id", driverId);
+    if (error) throw error;
+    await refreshDrivers();
+  }, [refreshDrivers]);
 
   return (
     <DataContext.Provider
@@ -382,6 +419,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         addDriver,
         updateDriver,
         deactivateDriver,
+        deleteDriver,
         refreshDrivers,
         loadingDrivers,
         paymentAccounts,
@@ -390,6 +428,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         refreshFeeSettings,
         distanceMatrix,
         getDistance,
+        getDeliveryFee,
+        refreshDistanceMatrix,
+        updateDriverBalance,
       }}
     >
       {children}

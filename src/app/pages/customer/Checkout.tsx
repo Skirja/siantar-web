@@ -12,19 +12,17 @@ import {
 import type { TablesInsert } from "../../lib/database.types";
 
 const VILLAGES: Village[] = [
-  "Desa Air Dua",
-  "Desa Balai Riam (Pusat Kecamatan)",
-  "Desa Bangun Jaya",
-  "Desa Bukit Sungkai",
-  "Desa Jihing (Jihing Janga area)",
-  "Desa Lupu Peruca",
-  "Desa Pempaning",
   "Desa Sekuningan Baru",
+  "Desa Bukit Sungkai",
+  "Desa Bangun Jaya",
+  "Desa Balai Riam (Pusat Kecamatan)",
+  "Desa Natai Kondang",
+  "Desa Lupu Peruca",
 ];
 
 export function Checkout() {
   const { items, subtotal: cartSubtotal, clearCart } = useCart();
-  const { addOrder, outlets, getDistance, feeSettings } = useData();
+  const { addOrder, outlets, getDistance, getDeliveryFee, feeSettings } = useData();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -43,8 +41,10 @@ export function Checkout() {
   // Get outlet from first item (assuming all items from same store)
   const outlet = outlets.find(o => o.id === items[0]?.outletId);
 
-  // Calculate distance based on villages
-  const distance = village && outlet ? getDistance(village, outlet.village) : 0;
+  // Calculate distance and delivery fee from matrix
+  const rawDistance = village && outlet ? getDistance(village, outlet.village) : 0;
+  const deliveryFeeFromMatrix = village && outlet ? getDeliveryFee(village, outlet.village) : 0;
+  const distance = rawDistance;
 
   // Build FeeSettings from context data
   const fees = {
@@ -56,7 +56,7 @@ export function Checkout() {
     min_distance_km: feeSettings.min_distance_km ?? getDefaultFeeSettings().min_distance_km,
   };
 
-  const finance = calculateOrderFinance(cartSubtotal, distance, fees);
+  const finance = calculateOrderFinance(cartSubtotal, distance, fees, deliveryFeeFromMatrix);
 
   const handleOrder = async () => {
     if (!name || !phone || !village || !address) {
@@ -230,7 +230,10 @@ export function Checkout() {
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                     <p className="text-sm text-orange-800">
                       <MapPin className="w-4 h-4 inline mr-1" />
-                      Biaya pengiriman dihitung Rp {fees.cost_per_km.toLocaleString("id-ID")}/km
+                      {village === outlet?.village
+                        ? `Ongkir sesama desa: Rp 5.000`
+                        : `Biaya pengiriman dihitung Rp ${fees.cost_per_km.toLocaleString("id-ID")}/km`
+                      }
                     </p>
                   </div>
                 )}
@@ -340,7 +343,16 @@ export function Checkout() {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Biaya Pengiriman</span>
                   <span className="text-gray-900">
-                    {formatCurrency(finance.deliveryFee)}
+                    {finance.deliveryFee > 15000 ? (
+                      <>
+                        <span className="line-through text-gray-400 mr-1">
+                          {formatCurrency(Math.round(finance.deliveryFee * 1.15 / 1000) * 1000)}
+                        </span>
+                        {formatCurrency(finance.deliveryFee)}
+                      </>
+                    ) : (
+                      formatCurrency(finance.deliveryFee)
+                    )}
                   </span>
                 </div>
               </div>

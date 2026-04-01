@@ -13,6 +13,7 @@ import {
   LogOut,
   Gift,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useData } from "../../contexts/DataContext";
@@ -20,12 +21,18 @@ import { calculateOrderFinance, calculateDriverBonus, formatCurrency } from "../
 import { Logo } from "../../components/Logo";
 import { toast } from "sonner";
 
+const MIN_BALANCE = 30000;
+
 export function DriverPanel() {
   const { role, isAuthenticated, logout, driverId } = useAuth();
   const navigate = useNavigate();
-  const { orders, updateOrderStatus, feeSettings } = useData();
+  const { orders, drivers, updateOrderStatus, feeSettings, getDeliveryFee } = useData();
   const [activeOrder, setActiveOrder] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+
+  // Get current driver's balance
+  const currentDriver = drivers.find((d) => d.id === driverId);
+  const driverBalance = (currentDriver as any)?.balance ?? 0;
 
   useEffect(() => {
     if (!isAuthenticated || role !== "driver" || !driverId) {
@@ -110,6 +117,10 @@ export function DriverPanel() {
   const todayStats = {
     orders: todaysCompleted.length,
     earning: todaysCompleted.reduce((sum, o) => {
+      const feeFromMatrix = o.customer_village ? getDeliveryFee(
+        orders.find(ord => ord.id === o.id)?.outlet_name ? "" : "",
+        o.customer_village
+      ) : 0;
       const finance = calculateOrderFinance(o.subtotal, o.distance, {
         cost_per_km: feeSettings.cost_per_km ?? 2000,
         service_fee: feeSettings.service_fee ?? 2000,
@@ -117,7 +128,7 @@ export function DriverPanel() {
         driver_share_pct: feeSettings.driver_share_pct ?? 80,
         admin_share_pct: feeSettings.admin_share_pct ?? 20,
         min_distance_km: feeSettings.min_distance_km ?? 1,
-      });
+      }, o.delivery_fee);
       return sum + finance.driverEarning;
     }, 0),
     distance: todaysCompleted.reduce((sum, o) => sum + o.distance, 0),
@@ -175,19 +186,35 @@ export function DriverPanel() {
                   {formatCurrency(todayStats.earning)}
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow-sm p-5">
+              <div className={`rounded-xl shadow-sm p-5 ${driverBalance < MIN_BALANCE ? "bg-red-50 border-2 border-red-300" : "bg-white"}`}>
                 <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm text-gray-600">Status</div>
-                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs">
-                    <div className="w-2 h-2 bg-green-700 rounded-full animate-pulse" />
-                    <span className="font-medium">Online</span>
+                  <div className="text-sm text-gray-600">Saldo Deposit</div>
+                  <Wallet className={`w-5 h-5 ${driverBalance < MIN_BALANCE ? "text-red-500" : "text-blue-500"}`} />
+                </div>
+                <div className={`text-2xl font-bold ${driverBalance < MIN_BALANCE ? "text-red-600" : "text-blue-600"}`}>
+                  {formatCurrency(driverBalance)}
+                </div>
+                {driverBalance < MIN_BALANCE && (
+                  <div className="flex items-center gap-1 mt-2 text-xs text-red-600">
+                    <AlertTriangle className="w-3 h-3" />
+                    <span>Saldo di bawah minimum ({formatCurrency(MIN_BALANCE)})</span>
                   </div>
-                </div>
-                <div className="text-sm text-gray-600 mt-2">
-                  {todayStats.distance} km hari ini
-                </div>
+                )}
               </div>
             </div>
+
+            {/* Low Balance Warning */}
+            {driverBalance < MIN_BALANCE && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+                <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0" />
+                <div>
+                  <div className="font-semibold text-red-800">Saldo Tidak Mencukupi</div>
+                  <div className="text-sm text-red-600">
+                    Saldo deposit Anda di bawah minimum {formatCurrency(MIN_BALANCE)}. Silakan hubungi admin untuk top up deposit.
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="bg-gradient-to-r from-[#FF6A00] to-[#FF8534] rounded-2xl shadow-lg p-6 mb-8 text-white">
               <div className="flex items-center gap-2 mb-4">
@@ -251,7 +278,7 @@ export function DriverPanel() {
                       driver_share_pct: feeSettings.driver_share_pct ?? 80,
                       admin_share_pct: feeSettings.admin_share_pct ?? 20,
                       min_distance_km: feeSettings.min_distance_km ?? 1,
-                    });
+                    }, order.delivery_fee);
 
                     return (
                       <div
@@ -442,7 +469,7 @@ export function DriverPanel() {
                     driver_share_pct: feeSettings.driver_share_pct ?? 80,
                     admin_share_pct: feeSettings.admin_share_pct ?? 20,
                     min_distance_km: feeSettings.min_distance_km ?? 1,
-                  });
+                  }, activeOrder.delivery_fee);
                   return (
                     <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-lg p-5">
                       <div className="font-semibold text-gray-900 mb-3 flex items-center gap-2">

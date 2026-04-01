@@ -38,14 +38,12 @@ import { useNotification } from "../../contexts/NotificationContext";
 import { uploadFile } from "../../../lib/supabase";
 
 const VILLAGES = [
-  "Desa Air Dua",
-  "Desa Balai Riam (Pusat Kecamatan)",
-  "Desa Bangun Jaya",
-  "Desa Bukit Sungkai",
-  "Desa Jihing (Jihing Janga area)",
-  "Desa Lupu Peruca",
-  "Desa Pempaning",
   "Desa Sekuningan Baru",
+  "Desa Bukit Sungkai",
+  "Desa Bangun Jaya",
+  "Desa Balai Riam (Pusat Kecamatan)",
+  "Desa Natai Kondang",
+  "Desa Lupu Peruca",
 ];
 
 export function AdminPanel() {
@@ -79,7 +77,7 @@ export function AdminPanel() {
   const [outletForm, setOutletForm] = useState({
     name: "",
     village: "",
-    category: "food" as "food" | "drink" | "package",
+    category: "Bakso & Mie Ayam" as string,
     image_url: "" as string | null,
   });
   const [outletImageFile, setOutletImageFile] = useState<File | null>(null);
@@ -151,7 +149,7 @@ export function AdminPanel() {
 
   const handleAddOutlet = () => {
     setEditingOutlet(null);
-    setOutletForm({ name: "", village: "", category: "food", image_url: null });
+    setOutletForm({ name: "", village: "", category: "Bakso & Mie Ayam", image_url: null });
     setOutletImageFile(null);
     setOutletImagePreview(null);
     setShowOutletModal(true);
@@ -162,7 +160,7 @@ export function AdminPanel() {
     setOutletForm({
       name: outlet.name,
       village: outlet.village,
-      category: outlet.category as "food" | "drink" | "package",
+      category: outlet.category,
       image_url: outlet.image_url,
     });
     setOutletImageFile(null);
@@ -717,12 +715,38 @@ export function AdminPanel() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Kategori</label>
                 <select
                   value={outletForm.category}
-                  onChange={(e) => setOutletForm({ ...outletForm, category: e.target.value as any })}
+                  onChange={(e) => setOutletForm({ ...outletForm, category: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                 >
-                  <option value="food">Makanan</option>
-                  <option value="drink">Minuman</option>
-                  <option value="package">Paket/Barang</option>
+                  <optgroup label="Makanan Utama">
+                    <option value="Bakso & Mie Ayam">Bakso & Mie Ayam</option>
+                    <option value="Nasi Goreng & Mie Goreng">Nasi Goreng & Mie Goreng</option>
+                    <option value="Ayam Bakar & Ayam Goreng">Ayam Bakar & Ayam Goreng</option>
+                    <option value="Bebek & Ikan">Bebek & Ikan</option>
+                    <option value="Seafood">Seafood</option>
+                    <option value="Soto & Sop">Soto & Sop</option>
+                    <option value="Pecel Lele / Lalapan">Pecel Lele / Lalapan</option>
+                    <option value="Rice Bowl & Nasi Kotak">Rice Bowl & Nasi Kotak</option>
+                    <option value="Sate & Grill">Sate & Grill</option>
+                    <option value="Martabak & Terang Bulan">Martabak & Terang Bulan</option>
+                  </optgroup>
+                  <optgroup label="Snack & Jajanan">
+                    <option value="Snack & Camilan">Snack & Camilan</option>
+                    <option value="Gorengan">Gorengan</option>
+                    <option value="Cilok, Bakso Bakar & Jajanan">Cilok, Bakso Bakar & Jajanan</option>
+                    <option value="Kue & Dessert">Kue & Dessert</option>
+                    <option value="Roti & Bakery">Roti & Bakery</option>
+                  </optgroup>
+                  <optgroup label="Minuman">
+                    <option value="Minuman Dingin">Minuman Dingin</option>
+                    <option value="Kopi & Teh">Kopi & Teh</option>
+                    <option value="Jus & Minuman Buah">Jus & Minuman Buah</option>
+                    <option value="Es Campur / Es Tradisional">Es Campur / Es Tradisional</option>
+                  </optgroup>
+                  <optgroup label="Lainnya">
+                    <option value="Frozen Food">Frozen Food</option>
+                    <option value="Catering / Nasi Box">Catering / Nasi Box</option>
+                  </optgroup>
                 </select>
               </div>
               <div>

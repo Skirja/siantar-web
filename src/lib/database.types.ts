@@ -15,18 +15,21 @@ export type Database = {
       distance_matrix: {
         Row: {
           distance_km: number;
+          fee: number;
           from_village: string;
           id: string;
           to_village: string;
         };
         Insert: {
           distance_km: number;
+          fee?: number;
           from_village: string;
           id?: string;
           to_village: string;
         };
         Update: {
           distance_km?: number;
+          fee?: number;
           from_village?: string;
           id?: string;
           to_village?: string;
@@ -440,7 +443,9 @@ export type Database = {
       };
       profiles: {
         Row: {
+          balance: number;
           created_at: string;
+          email: string | null;
           id: string;
           is_active: boolean;
           name: string;
@@ -450,7 +455,9 @@ export type Database = {
           village: string | null;
         };
         Insert: {
+          balance?: number;
           created_at?: string;
+          email?: string | null;
           id: string;
           is_active?: boolean;
           name: string;
@@ -460,7 +467,9 @@ export type Database = {
           village?: string | null;
         };
         Update: {
+          balance?: number;
           created_at?: string;
+          email?: string | null;
           id?: string;
           is_active?: boolean;
           name?: string;
