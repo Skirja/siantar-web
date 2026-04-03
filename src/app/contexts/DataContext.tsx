@@ -262,43 +262,53 @@ export function DataProvider({ children }: { children: ReactNode }) {
     order: TablesInsert<"orders">,
     items: TablesInsert<"order_items">[]
   ): Promise<string> => {
-    console.log("Creating order with data:", JSON.stringify(order, null, 2));
+    console.log("Creating order via RPC:", JSON.stringify(order, null, 2));
     console.log("Order items:", JSON.stringify(items, null, 2));
 
-    const { data: newOrder, error } = await supabase
-      .from("orders")
-      .insert(order)
-      .select()
-      .single();
-    
-    if (error) {
-      console.error("Order insert error:", error);
-      throw error;
-    }
-    if (!newOrder) throw new Error("Failed to create order");
+    // Convert items to JSON for the RPC function
+    const rpcItems = items.map(i => ({
+      product_id: i.product_id || null,
+      name: i.name,
+      price: i.price,
+      quantity: i.quantity || 1,
+      item_total: i.item_total,
+      selected_variant: i.selected_variant || null,
+      selected_extras: i.selected_extras || [],
+    }));
 
-    if (items.length > 0) {
-      const { error: iError } = await supabase
-        .from("order_items")
-        .insert(items.map((i) => ({ ...i, order_id: newOrder.id })));
-      
-      if (iError) {
-        console.error("Order items insert error:", iError);
-        // Rollback: delete the order we just created
-        await supabase.from("orders").delete().eq("id", newOrder.id);
-        throw iError;
-      }
-    }
-
-    // Add status history
-    await supabase.from("order_status_history").insert({
-      order_id: newOrder.id,
-      status: "pending",
-      notes: "Pesanan dibuat",
+    const { data: orderId, error } = await supabase.rpc('create_order', {
+      p_order_id: order.id!,
+      p_customer_name: order.customer_name!,
+      p_customer_phone: order.customer_phone!,
+      p_customer_village: order.customer_village!,
+      p_address: order.address!,
+      p_outlet_id: order.outlet_id!,
+      p_outlet_name: order.outlet_name!,
+      p_subtotal: order.subtotal!,
+      p_distance: order.distance || 0,
+      p_charged_distance: order.charged_distance || 0,
+      p_delivery_fee: order.delivery_fee!,
+      p_service_fee: order.service_fee!,
+      p_admin_fee: order.admin_fee || 0,
+      p_total: order.total!,
+      p_payment_method: order.payment_method!,
+      p_payment_provider: order.payment_provider || null,
+      p_unique_payment_code: order.unique_payment_code || null,
+      p_final_payment_amount: order.final_payment_amount || null,
+      p_payment_status: order.payment_status || 'pending',
+      p_status: order.status || 'pending',
+      p_is_manual_order: order.is_manual_order || false,
+      p_is_delivery_service: order.is_delivery_service || false,
+      p_items: rpcItems,
     });
 
+    if (error) {
+      console.error("create_order RPC error:", error);
+      throw error;
+    }
+
     await refreshOrders();
-    return newOrder.id;
+    return orderId;
   }, [refreshOrders]);
 
   const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus, changedBy?: string) => {

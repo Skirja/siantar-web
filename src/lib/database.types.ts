@@ -624,6 +624,38 @@ export type Database = {
         Args: { p_amount: number; p_driver_id: string }
         Returns: undefined
       }
+      delete_driver: {
+        Args: { p_driver_id: string }
+        Returns: undefined
+      }
+      create_order: {
+        Args: {
+          p_order_id: string
+          p_customer_name: string
+          p_customer_phone: string
+          p_customer_village: string
+          p_address: string
+          p_outlet_id: string
+          p_outlet_name: string
+          p_subtotal: number
+          p_distance: number
+          p_charged_distance: number
+          p_delivery_fee: number
+          p_service_fee: number
+          p_admin_fee: number
+          p_total: number
+          p_payment_method: string
+          p_payment_provider: string | null
+          p_unique_payment_code: number | null
+          p_final_payment_amount: number | null
+          p_payment_status: string
+          p_status: string
+          p_is_manual_order: boolean
+          p_is_delivery_service: boolean
+          p_items: Json
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
