@@ -126,14 +126,16 @@ export function Checkout() {
       // Build order items array
       const orderItems: TablesInsert<"order_items">[] = items.map(item => ({
         order_id: orderData.id!,
-        product_id: item.productId,
+        product_id: item.productId || null,
         name: item.name,
         price: item.price,
         quantity: item.quantity,
         item_total: item.price * item.quantity,
         selected_variant: item.selectedVariant?.name ?? null,
-        selected_extras: item.selectedExtras.map(e => e.name),
+        selected_extras: (item.selectedExtras || []).map(e => e.name),
       }));
+
+      console.log("Checkout - Order items being sent:", JSON.stringify(orderItems, null, 2));
 
       const orderId = await addOrder(orderData, orderItems);
 
@@ -145,9 +147,10 @@ export function Checkout() {
       } else {
         navigate(`/home/payment/${orderId}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create order:", error);
-      toast.error("Gagal membuat pesanan. Silakan coba lagi.");
+      const errorMessage = error?.message || "Gagal membuat pesanan. Silakan coba lagi.";
+      toast.error(`Error: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }

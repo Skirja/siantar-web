@@ -262,19 +262,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
     order: TablesInsert<"orders">,
     items: TablesInsert<"order_items">[]
   ): Promise<string> => {
+    console.log("Creating order with data:", JSON.stringify(order, null, 2));
+    console.log("Order items:", JSON.stringify(items, null, 2));
+
     const { data: newOrder, error } = await supabase
       .from("orders")
       .insert(order)
       .select()
       .single();
-    if (error) throw error;
+    
+    if (error) {
+      console.error("Order insert error:", error);
+      throw error;
+    }
     if (!newOrder) throw new Error("Failed to create order");
 
     if (items.length > 0) {
       const { error: iError } = await supabase
         .from("order_items")
         .insert(items.map((i) => ({ ...i, order_id: newOrder.id })));
-      if (iError) throw iError;
+      
+      if (iError) {
+        console.error("Order items insert error:", iError);
+        // Rollback: delete the order we just created
+        await supabase.from("orders").delete().eq("id", newOrder.id);
+        throw iError;
+      }
     }
 
     // Add status history
