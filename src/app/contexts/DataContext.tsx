@@ -373,7 +373,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [refreshDrivers]);
 
   const deleteDriver = useCallback(async (id: string) => {
-    const { error } = await supabase.from("profiles").delete().eq("id", id);
+    const { error } = await supabase.rpc('delete_driver', { p_driver_id: id });
     if (error) throw error;
     await refreshDrivers();
   }, [refreshDrivers]);

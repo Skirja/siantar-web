@@ -147,16 +147,16 @@ export function Home() {
           <div className="grid grid-cols-3 gap-3">
             {visibleCategories.map((cat) => (
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                key={cat.id}
+                onClick={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
                 className={`flex flex-col items-center p-4 rounded-xl border-2 transition-all duration-200 ${
-                  selectedCategory === cat
+                  selectedCategory === cat.id
                     ? "bg-orange-50 border-orange-300"
                     : "bg-white border-transparent shadow-sm hover:shadow-md hover:border-orange-300"
                 }`}
               >
-                <span className="text-3xl mb-2">{cat}</span>
-                <span className="text-xs font-medium text-gray-700 truncate w-full text-center">{cat}</span>
+                <span className="text-3xl mb-2">{cat.icon}</span>
+                <span className="text-xs font-medium text-gray-700 truncate w-full text-center">{cat.label}</span>
               </button>
             ))}
             {hasMore && !showAllCategories && (

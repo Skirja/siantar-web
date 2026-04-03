@@ -30,6 +30,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check existing session on mount
   useEffect(() => {
     const checkSession = async () => {
+      // First, check for customer session in localStorage
+      const customerName = localStorage.getItem("sianter_customer_name");
+      const customerPhone = localStorage.getItem("sianter_customer_phone");
+      if (customerName && customerPhone) {
+        setRole("customer");
+        setUsername(customerName);
+        setLoading(false);
+        return;
+      }
+
+      // Then check Supabase session (for admin/driver)
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const { data: profileData } = await supabase
@@ -37,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .select("*")
           .eq("id", session.user.id)
           .single();
-        
+
         if (profileData) {
           setProfile(profileData);
           setRole(profileData.role as UserRole);
