@@ -4,6 +4,7 @@ import { useCart } from "../../contexts/CartContext";
 import { useData } from "../../contexts/DataContext";
 import { useState } from "react";
 import { motion } from "motion/react";
+import { toast } from "sonner";
 import type { ProductVariant, ProductExtra, ProductWithDetails } from "../../contexts/DataContext";
 
 export function StoreDetail() {
@@ -75,29 +76,35 @@ export function StoreDetail() {
   };
 
   const handleAddToCart = (product: ProductWithDetails) => {
-    const variantId = selectedVariants[product.id];
-    const selectedVariant = variantId
-      ? product.variants?.find((v) => v.id === variantId)
-      : undefined;
+    try {
+      const variantId = selectedVariants[product.id];
+      const selectedVariant = variantId
+        ? product.variants?.find((v) => v.id === variantId)
+        : undefined;
 
-    const extraIds = selectedExtras[product.id] || [];
-    const productExtras = extraIds
-      .map((id) => product.extras?.find((e) => e.id === id))
-      .filter((e): e is ProductExtra => !!e);
+      const extraIds = selectedExtras[product.id] || [];
+      const productExtras = extraIds
+        .map((id) => product.extras?.find((e) => e.id === id))
+        .filter((e): e is ProductExtra => !!e);
 
-    const price = calculateProductPrice(product);
+      const price = calculateProductPrice(product);
 
-    addItem({
-      productId: product.id,
-      name: product.name,
-      basePrice: product.discount_price ?? product.price,
-      selectedVariant,
-      selectedExtras: productExtras,
-      price,
-      outletId: storeId,
-      outletName: outlet.name,
-      imageUrl: product.image_url,
-    });
+      addItem({
+        productId: product.id,
+        name: product.name,
+        basePrice: product.discount_price ?? product.price,
+        selectedVariant,
+        selectedExtras: productExtras,
+        price,
+        outletId: storeId,
+        outletName: outlet.name,
+        imageUrl: product.image_url,
+      });
+
+      toast.success(`${product.name} ditambahkan ke keranjang`);
+    } catch (error: any) {
+      toast.error(error.message);
+    }
   };
 
   return (

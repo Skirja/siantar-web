@@ -42,6 +42,15 @@ export function Checkout() {
   // Get outlet from first item (assuming all items from same store)
   const outlet = outlets.find(o => o.id === items[0]?.outletId);
 
+  // Validate single-store order (all items must be from same store)
+  const uniqueStores = new Set(items.map(item => item.outletId));
+  const isMultiOutlet = uniqueStores.size > 1;
+
+  // If multi-outlet, get all outlets
+  const orderOutlets = isMultiOutlet
+    ? outlets.filter(o => uniqueStores.has(o.id))
+    : outlet ? [outlet] : [];
+
   // Calculate distance and delivery fee from matrix
   const rawDistance = village && outlet ? getDistance(village, outlet.village) : 0;
   const deliveryFeeFromMatrix = village && outlet ? getDeliveryFee(village, outlet.village) : 0;
@@ -62,18 +71,6 @@ export function Checkout() {
   const handleOrder = async () => {
     if (!name || !phone || !village || !address) {
       toast.error("Mohon lengkapi semua data");
-      return;
-    }
-
-    if (!outlet) {
-      toast.error("Outlet tidak ditemukan");
-      return;
-    }
-
-    // Validate single-store order (all items must be from same store)
-    const uniqueStores = new Set(items.map(item => item.outletId));
-    if (uniqueStores.size > 1) {
-      toast.error("Pesanan harus dari satu toko yang sama");
       return;
     }
 

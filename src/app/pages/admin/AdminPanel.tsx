@@ -66,6 +66,8 @@ export function AdminPanel() {
     deleteOutlet,
     assignDriver,
     updateOrder,
+    rejectOrder,
+    deleteOrder,
     getProductsByOutlet,
     addDriver,
     updateDriver,
@@ -80,6 +82,8 @@ export function AdminPanel() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteOutletConfirm, setShowDeleteOutletConfirm] = useState<string | null>(null);
   const [showAssignDriverConfirm, setShowAssignDriverConfirm] = useState<{ orderId: string; driverId: string } | null>(null);
+  const [showRejectOrderConfirm, setShowRejectOrderConfirm] = useState<string | null>(null);
+  const [showDeleteOrderConfirm, setShowDeleteOrderConfirm] = useState<string | null>(null);
 
   // Outlet management
   const [showOutletModal, setShowOutletModal] = useState(false);
@@ -268,6 +272,28 @@ export function AdminPanel() {
       toast.success("Pembayaran ditolak");
     } catch (err: any) {
       toast.error(err.message);
+    }
+  };
+
+  const handleRejectOrder = async (orderId: string) => {
+    try {
+      await rejectOrder(orderId);
+      toast.success("Pesanan ditolak");
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menolak pesanan");
+    } finally {
+      setShowRejectOrderConfirm(null);
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: string) => {
+    try {
+      await deleteOrder(orderId);
+      toast.success("Pesanan dihapus");
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menghapus pesanan");
+    } finally {
+      setShowDeleteOrderConfirm(null);
     }
   };
 
@@ -618,6 +644,22 @@ export function AdminPanel() {
                               </button>
                             )}
                           </div>
+                          {order.status === "pending" && (
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              <button
+                                onClick={() => setShowRejectOrderConfirm(order.id)}
+                                className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-sm"
+                              >
+                                Tolak Pesanan
+                              </button>
+                              <button
+                                onClick={() => setShowDeleteOrderConfirm(order.id)}
+                                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
+                              >
+                                Hapus Pesanan
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -837,6 +879,34 @@ export function AdminPanel() {
           cancelText="Batal"
           onConfirm={async () => { await logout(); navigate("/login-admin"); }}
           variant="default"
+        />
+      )}
+
+      {/* Reject Order Confirm */}
+      {showRejectOrderConfirm && (
+        <ConfirmDialog
+          open={!!showRejectOrderConfirm}
+          onOpenChange={() => setShowRejectOrderConfirm(null)}
+          title="Tolak Pesanan"
+          description="Apakah Anda yakin ingin menolak pesanan ini? Pesanan akan dibatalkan."
+          confirmText="Ya, Tolak"
+          cancelText="Batal"
+          onConfirm={() => handleRejectOrder(showRejectOrderConfirm!)}
+          variant="destructive"
+        />
+      )}
+
+      {/* Delete Order Confirm */}
+      {showDeleteOrderConfirm && (
+        <ConfirmDialog
+          open={!!showDeleteOrderConfirm}
+          onOpenChange={() => setShowDeleteOrderConfirm(null)}
+          title="Hapus Pesanan"
+          description="Apakah Anda yakin ingin menghapus pesanan ini? Tindakan ini tidak dapat dibatalkan."
+          confirmText="Ya, Hapus"
+          cancelText="Batal"
+          onConfirm={() => handleDeleteOrder(showDeleteOrderConfirm!)}
+          variant="destructive"
         />
       )}
     </div>

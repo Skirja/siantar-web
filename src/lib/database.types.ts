@@ -664,6 +664,14 @@ export type Database = {
         }
         Returns: string
       }
+      reject_order: {
+        Args: { p_order_id: string }
+        Returns: string
+      }
+      delete_order: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

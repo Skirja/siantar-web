@@ -64,7 +64,15 @@ export function Settings() {
     setLoading(true);
     try {
       for (const [key, value] of Object.entries(feeForm)) {
-        await supabase.from("fee_settings").update({ value }).eq("key", key);
+        const { error } = await supabase
+          .from("fee_settings")
+          .update({ value: parseInt(String(value)) || 0, updated_at: new Date().toISOString() })
+          .eq("key", key);
+        
+        if (error) {
+          console.error(`Error updating ${key}:`, error);
+          throw error;
+        }
       }
       await refreshFeeSettings();
       toast.success("Pengaturan fee berhasil disimpan");

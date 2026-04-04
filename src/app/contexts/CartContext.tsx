@@ -49,6 +49,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = useCallback((newItem: Omit<CartItem, "quantity">) => {
     setItems((prev) => {
+      // Check if cart is not empty and new item is from different outlet
+      if (prev.length > 0 && prev[0].outletId !== newItem.outletId) {
+        // Find outlet name for error message
+        const existingOutlet = prev[0].outletName;
+        const newOutlet = newItem.outletName;
+        throw new Error(`Keranjang hanya boleh berisi produk dari satu outlet. Saat ini: "${existingOutlet}", mencoba menambahkan dari: "${newOutlet}"`);
+      }
+
       // Check if same product with same variant and extras exists
       const existingIndex = prev.findIndex(
         (item) =>

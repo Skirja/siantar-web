@@ -64,6 +64,8 @@ interface DataContextType {
   updateOrderPayment: (orderId: string, paymentData: { payment_proof_url?: string; payment_status?: string }) => Promise<void>;
   updateOrder: (orderId: string, updates: Partial<TablesInsert<"orders">>) => Promise<void>;
   assignDriver: (orderId: string, driverId: string, driverName: string) => Promise<void>;
+  rejectOrder: (orderId: string) => Promise<void>;
+  deleteOrder: (orderId: string) => Promise<void>;
   refreshOrders: () => Promise<void>;
   loadingOrders: boolean;
 
@@ -347,6 +349,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return data;
   }, [refreshOrders]);
 
+  const rejectOrder = useCallback(async (orderId: string) => {
+    const { error } = await supabase.rpc('reject_order', { p_order_id: orderId });
+    if (error) throw error;
+    await refreshOrders();
+  }, [refreshOrders]);
+
+  const deleteOrder = useCallback(async (orderId: string) => {
+    const { error } = await supabase.rpc('delete_order', { p_order_id: orderId });
+    if (error) throw error;
+    await refreshOrders();
+  }, [refreshOrders]);
+
   // Driver CRUD
   const addDriver = useCallback(async (name: string, phone: string, password: string): Promise<{ email: string; password: string }> => {
     // Create auth user with admin API
@@ -442,6 +456,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         updateOrderPayment,
         updateOrder,
         assignDriver,
+        rejectOrder,
+        deleteOrder,
         refreshOrders,
         loadingOrders,
         drivers,
