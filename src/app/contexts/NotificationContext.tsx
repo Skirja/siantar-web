@@ -41,12 +41,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // Load and subscribe to notifications when auth state changes
   useEffect(() => {
-    // Clear notifications on logout or role change
+    // Clear ALL notifications immediately on any auth change
     setDbNotifications([]);
     setNotifications([]);
+    toast.dismiss();
 
-    // Only load DB notifications for customer role with phone filtering
-    if (role === "customer" && customerPhone) {
+    // Don't subscribe until we have auth info
+    if (!role || !customerPhone) return;
+
+    if (role === "customer") {
       const loadNotifications = async () => {
         const { data } = await supabase
           .from("notifications")
@@ -60,8 +63,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const channel = subscribeToTable("notifications", (payload) => {
         if (payload.eventType === "INSERT") {
           const newNotif = payload.new as DbNotification;
-          // HANYA tambahkan jika MATCH nomor telepon customer YANG SEKARANG LOGIN SAJA
-          // ❌ HAPUS: kondisi `=== null` / broadcast untuk customer (semua notifikasi harus punya target phone)
+          // ONLY add if phone matches exactly - no broadcast for customers
           if (newNotif.customer_phone === customerPhone) {
             setDbNotifications((prev) => [newNotif, ...prev]);
             toast.info(newNotif.title, { description: newNotif.message });
@@ -70,7 +72,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       });
 
       return () => { unsubscribe(channel); };
-    } else if (role !== "customer") {
+    } else {
       // For admin/driver, load all notifications
       const loadNotifications = async () => {
         const { data } = await supabase

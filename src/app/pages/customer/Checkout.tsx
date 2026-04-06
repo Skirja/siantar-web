@@ -4,6 +4,7 @@ import { ArrowLeft, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { useCart } from "../../contexts/CartContext";
 import { useData, Village } from "../../contexts/DataContext";
+import { useAuth } from "../../contexts/AuthContext";
 import {
   calculateOrderFinance,
   formatCurrency,
@@ -24,6 +25,7 @@ const VILLAGES: Village[] = [
 export function Checkout() {
   const { items, subtotal: cartSubtotal, clearCart } = useCart();
   const { addOrder, outlets, getDistance, getDeliveryFee, feeSettings, orders } = useData();
+  const { customerPhone, username: customerName } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -31,6 +33,12 @@ export function Checkout() {
   const [address, setAddress] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "transfer-bri" | "transfer-dana">("cod");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Pre-fill customer info from auth session
+  useEffect(() => {
+    if (customerName && !name) setName(customerName);
+    if (customerPhone && !phone) setPhone(customerPhone);
+  }, [customerName, customerPhone]);
 
   // Redirect if cart is empty
   useEffect(() => {

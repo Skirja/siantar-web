@@ -12,9 +12,21 @@ export function History() {
 
   const customerName = localStorage.getItem("sianter_customer_name") || "";
 
+  // Wait for auth to load before filtering orders
+  if (!customerPhone || !customerName) {
+    return (
+      <div className="pb-20 md:pb-8 min-h-screen bg-gradient-to-b from-gray-50 to-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Filter orders for this customer - MUST match BOTH name AND phone
   const customerOrders = orders.filter((order) => {
-    if (!customerName || !customerPhone) return false;
     return order.customer_name === customerName && order.customer_phone === customerPhone;
   });
 

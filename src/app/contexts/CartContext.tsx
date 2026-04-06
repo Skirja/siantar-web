@@ -1,14 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import type { ProductVariant, ProductExtra } from "./DataContext";
+import { useAuth } from "./AuthContext";
 
 // Helper to get customer-specific storage keys
-function getCustomerCartKey(): string {
-  const phone = localStorage.getItem("sianter_customer_phone");
+function getCustomerCartKey(phone: string): string {
   return phone ? `siantar_cart_${phone}` : "siantar_cart_global";
 }
 
-function getCustomerNotesKey(): string {
-  const phone = localStorage.getItem("sianter_customer_phone");
+function getCustomerNotesKey(phone: string): string {
   return phone ? `siantar_cart_notes_${phone}` : "siantar_cart_notes_global";
 }
 
@@ -39,30 +38,42 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>(() => {
+  const { customerPhone } = useAuth();
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [notes, setNotes] = useState("");
+
+  // Re-hydrate cart when customer phone changes (login/logout/switch)
+  useEffect(() => {
+    const key = getCustomerCartKey(customerPhone || "");
+    const notesKey = getCustomerNotesKey(customerPhone || "");
     try {
-      const saved = localStorage.getItem(getCustomerCartKey());
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [];
-  });
-  const [notes, setNotes] = useState(() => {
-    return localStorage.getItem(getCustomerNotesKey()) || "";
-  });
+      const saved = localStorage.getItem(key);
+      setItems(saved ? JSON.parse(saved) : []);
+    } catch {
+      setItems([]);
+    }
+    try {
+      const savedNotes = localStorage.getItem(notesKey);
+      setNotes(savedNotes || "");
+    } catch {
+      setNotes("");
+    }
+  }, [customerPhone]);
 
   useEffect(() => {
-    localStorage.setItem(getCustomerCartKey(), JSON.stringify(items));
-  }, [items]);
+    if (!customerPhone) return;
+    localStorage.setItem(getCustomerCartKey(customerPhone), JSON.stringify(items));
+  }, [items, customerPhone]);
 
   useEffect(() => {
-    localStorage.setItem(getCustomerNotesKey(), notes);
-  }, [notes]);
+    if (!customerPhone) return;
+    localStorage.setItem(getCustomerNotesKey(customerPhone), notes);
+  }, [notes, customerPhone]);
 
   const addItem = useCallback((newItem: Omit<CartItem, "quantity">) => {
     setItems((prev) => {
       // Check if cart is not empty and new item is from different outlet
       if (prev.length > 0 && prev[0].outletId !== newItem.outletId) {
-        // Find outlet name for error message
         const existingOutlet = prev[0].outletName;
         const newOutlet = newItem.outletName;
         throw new Error(`Keranjang hanya boleh berisi produk dari satu outlet. Saat ini: "${existingOutlet}", mencoba menambahkan dari: "${newOutlet}"`);

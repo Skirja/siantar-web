@@ -38,11 +38,11 @@ const normalizePhoneForWhatsApp = (phone: string | null | undefined): string | n
 };
 
 export function DriverPanel() {
-  const { role, isAuthenticated, logout, driverId } = useAuth();
+  const { role, isAuthenticated, logout, driverId, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { orders, drivers, updateOrderStatus, feeSettings, getDeliveryFee } = useData();
   const [activeOrder, setActiveOrder] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
@@ -54,14 +54,29 @@ export function DriverPanel() {
   const currentDriver = drivers.find((d) => d.id === driverId);
   const driverBalance = (currentDriver as any)?.balance ?? 0;
 
+  // Sync activeOrder with realtime updates from DataContext
   useEffect(() => {
+    if (activeOrder) {
+      const updated = orders.find(o => o.id === activeOrder.id);
+      if (updated && updated.status !== activeOrder.status) {
+        setActiveOrder(updated);
+      }
+    }
+  }, [orders, activeOrder]);
+
+  useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated || role !== "driver" || !driverId) {
       navigate("/login-driver");
     }
-  }, [isAuthenticated, role, driverId, navigate]);
+  }, [isAuthenticated, role, driverId, navigate, authLoading]);
 
-  if (!isAuthenticated || role !== "driver" || !driverId) {
-    return null;
+  if (authLoading || !isAuthenticated || role !== "driver" || !driverId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+      </div>
+    );
   }
 
   const myOrders = orders.filter(
@@ -75,8 +90,8 @@ export function DriverPanel() {
   );
 
   const handleAccept = async (order: any) => {
-    if (loading) return; // Prevent double-click
-    setLoading(true);
+    if (actionLoading) return;
+    setActionLoading(true);
     try {
       await updateOrderStatus(order.id, "processing", driverId);
       const updatedOrder = { ...order, status: "processing" };
@@ -85,12 +100,12 @@ export function DriverPanel() {
     } catch {
       toast.error("Gagal mengupdate status");
     }
-    setLoading(false);
+    setActionLoading(false);
   };
 
   const handleGoingToStore = async (): Promise<void> => {
     if (!activeOrder) return;
-    setLoading(true);
+    setActionLoading(true);
     try {
       await updateOrderStatus(activeOrder.id, "going-to-store", driverId);
       setActiveOrder({ ...activeOrder, status: "going-to-store" });
@@ -99,13 +114,13 @@ export function DriverPanel() {
       console.error("Error updating status:", err);
       toast.error("Gagal mengupdate status");
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
   const handlePickup = async (): Promise<void> => {
     if (!activeOrder) return;
-    setLoading(true);
+    setActionLoading(true);
     try {
       await updateOrderStatus(activeOrder.id, "picked-up", driverId);
       setActiveOrder({ ...activeOrder, status: "picked-up" });
@@ -114,13 +129,13 @@ export function DriverPanel() {
       console.error("Error updating status:", err);
       toast.error("Gagal mengupdate status");
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
   const handleDeliver = async (): Promise<void> => {
     if (!activeOrder) return;
-    setLoading(true);
+    setActionLoading(true);
     try {
       await updateOrderStatus(activeOrder.id, "on-delivery", driverId);
       setActiveOrder({ ...activeOrder, status: "on-delivery" });
@@ -129,13 +144,13 @@ export function DriverPanel() {
       console.error("Error updating status:", err);
       toast.error("Gagal mengupdate status");
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
   const handleComplete = async (): Promise<void> => {
     if (!activeOrder) return;
-    setLoading(true);
+    setActionLoading(true);
     try {
       await updateOrderStatus(activeOrder.id, "completed", driverId);
       toast.success("Pengiriman selesai!");
@@ -144,7 +159,7 @@ export function DriverPanel() {
       console.error("Error completing order:", err);
       toast.error("Gagal menyelesaikan order");
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
@@ -432,7 +447,7 @@ export function DriverPanel() {
                         </button>
                         <button
                           onClick={() => handleAccept(order)}
-                          disabled={driverBalance < MIN_BALANCE || loading}
+                          disabled={driverBalance < MIN_BALANCE || actionLoading}
                           className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors ${
                             driverBalance < MIN_BALANCE
                               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -444,7 +459,7 @@ export function DriverPanel() {
                               <AlertTriangle className="w-5 h-5" />
                               <span>Saldo Tidak Mencukupi</span>
                             </>
-                          ) : loading ? (
+                          ) : actionLoading ? (
                             <>
                               <Loader2 className="w-5 h-5 animate-spin" />
                               <span>Memproses...</span>
@@ -625,10 +640,10 @@ export function DriverPanel() {
                       description: "Konfirmasi bahwa Anda akan menuju ke toko pengambilan?",
                       onConfirm: handleGoingToStore,
                     })}
-                    disabled={loading}
+                    disabled={actionLoading}
                     className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    {loading && <Loader2 className="w-5 h-5 animate-spin" />}
+                    {actionLoading && <Loader2 className="w-5 h-5 animate-spin" />}
                     Menuju Toko
                   </button>
                 )}
@@ -639,10 +654,10 @@ export function DriverPanel() {
                       description: "Konfirmasi bahwa Anda akan mengambil pesanan dari toko?",
                       onConfirm: handlePickup,
                     })}
-                    disabled={loading}
+                    disabled={actionLoading}
                     className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    {loading && <Loader2 className="w-5 h-5 animate-spin" />}
+                    {actionLoading && <Loader2 className="w-5 h-5 animate-spin" />}
                     Ambil Pesanan
                   </button>
                 )}
@@ -653,10 +668,10 @@ export function DriverPanel() {
                       description: "Konfirmasi bahwa Anda akan memulai pengiriman ke customer?",
                       onConfirm: handleDeliver,
                     })}
-                    disabled={loading}
+                    disabled={actionLoading}
                     className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    {loading && <Loader2 className="w-5 h-5 animate-spin" />}
+                    {actionLoading && <Loader2 className="w-5 h-5 animate-spin" />}
                     Mulai Pengiriman
                   </button>
                 )}
@@ -667,10 +682,10 @@ export function DriverPanel() {
                       description: "Konfirmasi bahwa Anda telah menyelesaikan pengiriman?",
                       onConfirm: handleComplete,
                     })}
-                    disabled={loading}
+                    disabled={actionLoading}
                     className="w-full py-4 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    {loading && <Loader2 className="w-5 h-5 animate-spin" />}
+                    {actionLoading && <Loader2 className="w-5 h-5 animate-spin" />}
                     Selesaikan Pengiriman
                   </button>
                 )}
@@ -725,16 +740,12 @@ export function DriverPanel() {
       {confirmAction && (
         <ConfirmDialog
           open={true}
-          onOpenChange={(open) => !open && !loading && setConfirmAction(null)}
+          onOpenChange={(open) => !open && !actionLoading && setConfirmAction(null)}
           title={confirmAction.title}
           description={confirmAction.description}
-          confirmText={loading ? "Memproses..." : "Konfirmasi"}
+          confirmText={actionLoading ? "Memproses..." : "Konfirmasi"}
           cancelText="Batal"
-          onConfirm={async () => {
-            if (loading) return;
-            await confirmAction.onConfirm();
-            setConfirmAction(null);
-          }}
+          onConfirm={confirmAction.onConfirm}
         />
       )}
     </div>

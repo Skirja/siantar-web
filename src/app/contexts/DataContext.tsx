@@ -340,14 +340,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [refreshOrders]);
 
   const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus, changedBy?: string) => {
-    const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
-    if (error) throw error;
-
-    await supabase.from("order_status_history").insert({
-      order_id: orderId,
-      status,
-      changed_by: changedBy || null,
+    const { error } = await supabase.rpc('update_order_status', {
+      p_order_id: orderId,
+      p_status: status,
+      p_changed_by: changedBy || null,
     });
+    if (error) {
+      console.error("updateOrderStatus error:", error);
+      throw error;
+    }
 
     await refreshOrders();
   }, [refreshOrders]);

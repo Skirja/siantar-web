@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +17,7 @@ interface ConfirmDialogProps {
   description: string;
   confirmText?: string;
   cancelText?: string;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   variant?: "default" | "danger" | "destructive";
 }
 
@@ -30,9 +31,16 @@ export function ConfirmDialog({
   onConfirm,
   variant = "default",
 }: ConfirmDialogProps) {
-  const handleConfirm = () => {
-    onConfirm();
-    onOpenChange(false);
+  const [processing, setProcessing] = useState(false);
+
+  const handleConfirm = async () => {
+    setProcessing(true);
+    try {
+      await onConfirm();
+    } finally {
+      setProcessing(false);
+      onOpenChange(false);
+    }
   };
 
   const variantClass = variant === "destructive" || variant === "danger"
@@ -54,9 +62,10 @@ export function ConfirmDialog({
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
-            className={variantClass}
+            className={`${variantClass} ${processing ? 'opacity-70 cursor-not-allowed' : ''}`}
+            disabled={processing}
           >
-            {confirmText}
+            {processing ? 'Memproses...' : confirmText}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

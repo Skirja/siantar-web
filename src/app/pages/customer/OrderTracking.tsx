@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router";
-import { ArrowLeft, Phone, CheckCircle2, Clock, Truck, MapPin, Package, Navigation, Bell, CreditCard, AlertCircle, MessageCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, Phone, CheckCircle2, Clock, Truck, MapPin, Package, Navigation, Bell, CreditCard, AlertCircle, MessageCircle, Loader2, User } from "lucide-react";
 import { useData, OrderStatus } from "../../contexts/DataContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { toast } from "sonner";
@@ -8,7 +8,9 @@ import { motion } from "motion/react";
 import { Logo } from "../../components/Logo";
 import { formatCurrency } from "../../utils/financeCalculations";
 
-const orderStatuses: Array<{ id: OrderStatus; label: string; icon: typeof Clock; description: string }> = [
+const orderStatuses: Array<{ id: string; label: string; icon: typeof Clock; description: string }> = [
+  { id: "pending", label: "Menunggu Konfirmasi", icon: Clock, description: "Pesanan menunggu konfirmasi admin" },
+  { id: "driver_assigned", label: "Driver Ditugaskan", icon: User, description: "Driver telah ditugaskan untuk pesanan Anda" },
   { id: "processing", label: "Diproses", icon: Clock, description: "Pesanan sedang diproses admin" },
   { id: "going-to-store", label: "Driver menuju toko", icon: MapPin, description: "Driver dalam perjalanan ke toko" },
   { id: "picked-up", label: "Pesanan diambil", icon: Package, description: "Pesanan sudah diambil dari toko" },
@@ -27,7 +29,7 @@ export function OrderTracking() {
 
   const currentOrder = orders.find(o => o.id === orderId);
 
-  // Validate ownership
+  // Validate ownership - wait for auth to be ready before deciding
   useEffect(() => {
     if (!currentOrder) {
       setIsOwner(false);
@@ -37,8 +39,20 @@ export function OrderTracking() {
     const storedPhone = localStorage.getItem("sianter_customer_phone") || "";
     // Use customerPhone from AuthContext OR fallback to localStorage
     const activePhone = customerPhone || storedPhone;
+    
+    // If we have no phone info yet, don't decide ownership yet (still loading)
+    if (!activePhone) {
+      setIsOwner(null);
+      return;
+    }
+    
+    // Normalize both phones for comparison (strip non-digits)
+    const normalizePhone = (p: string) => (p || "").replace(/\D/g, "");
+    const orderPhone = normalizePhone(currentOrder.customer_phone);
+    const userPhone = normalizePhone(activePhone);
+    
     // Check BOTH name and phone match
-    const owns = currentOrder.customer_name === customerName && currentOrder.customer_phone === activePhone;
+    const owns = currentOrder.customer_name === customerName && orderPhone === userPhone && userPhone.length > 0;
     setIsOwner(owns);
   }, [currentOrder, customerPhone]);
 
@@ -74,6 +88,7 @@ export function OrderTracking() {
 
     const statusProgress: Record<string, number> = {
       "pending": 0,
+      "driver_assigned": 5,
       "processing": 10,
       "going-to-store": 30,
       "picked-up": 50,
@@ -98,6 +113,15 @@ export function OrderTracking() {
   }, [currentOrder?.status]);
 
   if (loadingOrders && !currentOrder) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+      </div>
+    );
+  }
+
+  // Wait for ownership check to complete before showing anything
+  if (isOwner === null) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
@@ -152,6 +176,7 @@ export function OrderTracking() {
   }
 
   const currentStatusIndex = orderStatuses.findIndex(s => s.id === currentOrder.status);
+  const safeStatusIndex = currentStatusIndex >= 0 ? currentStatusIndex : 0;
   const driver = currentOrder.driver_id ? drivers.find(d => d.id === currentOrder.driver_id) : null;
 
   return (
@@ -326,7 +351,7 @@ export function OrderTracking() {
           <div className="relative py-4">
             {orderStatuses.map((status, index) => {
               const Icon = status.icon;
-              const isCompleted = index <= currentStatusIndex;
+              const isCompleted = index <= safeStatusIndex;
               const isActive = status.id === currentOrder.status;
 
               return (
