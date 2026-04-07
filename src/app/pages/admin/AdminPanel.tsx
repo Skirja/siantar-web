@@ -51,17 +51,18 @@ const VILLAGE_GROUPS = [
   {
     label: "Wilayah 1 (Dekat)",
     villages: [
+      "Desa Bukit Sungkai",
+      "Desa Sekuningan Baru",
       "Desa Balai Riam (Pusat Kecamatan)",
-      "Desa Natai Kondang",
-      "Desa Lupu Peruca",
+      "Desa Bangun Jaya",
     ],
   },
   {
     label: "Wilayah 2 (Jauh)",
     villages: [
-      "Desa Sekuningan Baru",
-      "Desa Bukit Sungkai",
-      "Desa Bangun Jaya",
+      "Desa Lupu Peruca",
+      "Desa Natai Kondang",
+      "Desa Ajang",
     ],
   },
 ];
@@ -502,7 +503,14 @@ export function AdminPanel() {
                 </div>
               ) : (
                 orders.map((order) => {
-                  const finance = calculateOrderFinance(order.subtotal, order.distance);
+                  const finance = calculateOrderFinance(order.subtotal, order.distance, 0, {
+                      cost_per_km: fees.cost_per_km,
+                      service_fee: 0,
+                      admin_fee: 0,
+                      driver_share_pct: fees.driver_share_pct,
+                      admin_share_pct: fees.admin_share_pct,
+                      min_distance_km: fees.min_distance_km,
+                    }, order.delivery_fee);
                   return (
                     <div key={order.id} className="bg-white rounded-xl shadow-sm p-6">
                       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
@@ -591,20 +599,26 @@ export function AdminPanel() {
                               <span className="font-medium">{formatCurrency(order.subtotal)}</span>
                             </div>
                             <div className="flex justify-between gap-6">
-                              <span className="text-gray-600">Admin Fee:</span>
-                              <span className="font-medium">{formatCurrency(order.admin_fee)}</span>
+                              <span className="text-gray-600">Markup (layanan):</span>
+                              <span className="font-medium">{formatCurrency(order.service_fee)}</span>
                             </div>
                             <div className="flex justify-between gap-6">
-                              <span className="text-gray-600">Service Fee:</span>
-                              <span className="font-medium">{formatCurrency(order.service_fee)}</span>
+                              <span className="text-gray-600">Ongkir ({order.charged_distance} km):</span>
+                              <span className="font-medium">{formatCurrency(order.delivery_fee)}</span>
                             </div>
                             <div className="flex justify-between gap-6 border-t pt-2">
                               <span className="text-gray-600">Total:</span>
                               <span className="font-bold text-orange-600">{formatCurrency(order.total)}</span>
                             </div>
-                            <div className="flex justify-between gap-6">
-                              <span className="text-gray-600">Admin Profit:</span>
-                              <span className="font-semibold text-green-600">{formatCurrency(finance.adminProfit)}</span>
+                            <div className="border-t pt-2 space-y-1">
+                              <div className="flex justify-between gap-6">
+                                <span className="text-gray-600">↗ Setoran admin:</span>
+                                <span className="font-semibold text-green-600">{formatCurrency(finance.setoranToAdmin)}</span>
+                              </div>
+                              <div className="flex justify-between gap-6">
+                                <span className="text-gray-600">↙ Earning driver:</span>
+                                <span className="font-semibold text-blue-600">{formatCurrency(finance.driverEarning)}</span>
+                              </div>
                             </div>
                           </div>
                           {order.status === "pending" && (
@@ -613,15 +627,35 @@ export function AdminPanel() {
                                 <div className="bg-white border-2 border-orange-500 rounded-lg p-3">
                                   <div className="text-sm font-medium text-gray-900 mb-2">Pilih Driver:</div>
                                   <div className="space-y-2">
-                                    {drivers.filter((d) => d.is_active).map((driver) => (
-                                      <button
-                                        key={driver.id}
-                                        onClick={() => handleAssignDriver(order.id, driver.id)}
-                                        className="w-full text-left px-3 py-2 bg-gray-50 hover:bg-orange-50 rounded text-sm"
-                                      >
-                                        {driver.name}
-                                      </button>
-                                    ))}
+                                    {drivers.filter((d) => d.is_active).map((driver) => {
+                                      const todayDriverOrders = orders.filter(
+                                        o => o.driver_id === driver.id &&
+                                        new Date(o.created_at).toDateString() === new Date().toDateString() &&
+                                        o.status === 'completed'
+                                      ).length;
+                                      const isOnline = (driver as any).is_online;
+                                      return (
+                                        <button
+                                          key={driver.id}
+                                          onClick={() => handleAssignDriver(order.id, driver.id)}
+                                          className="w-full text-left px-3 py-2 bg-gray-50 hover:bg-orange-50 rounded text-sm"
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
+                                              <span className="font-medium">{driver.name}</span>
+                                            </div>
+                                            <div className="text-xs text-gray-500 flex gap-1">
+                                              <span className={isOnline ? 'text-green-600' : 'text-gray-400'}>{isOnline ? 'Online' : 'Offline'}</span>
+                                              <span>•</span>
+                                              <span>{todayDriverOrders}x hari ini</span>
+                                              <span>•</span>
+                                              <span>Saldo {formatCurrency((driver as any).balance ?? 0)}</span>
+                                            </div>
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
                                     <button onClick={() => setAssigningOrderId(null)} className="w-full px-3 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm">
                                       Batal
                                     </button>

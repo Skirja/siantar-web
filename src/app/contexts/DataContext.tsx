@@ -89,6 +89,9 @@ interface DataContextType {
   getDeliveryFee: (fromVillage: string, toVillage: string) => number;
   refreshDistanceMatrix: () => Promise<void>;
   updateDriverBalance: (driverId: string, amount: number) => Promise<void>;
+  driverRejectOrder: (orderId: string, driverId: string) => Promise<void>;
+  toggleDriverOnline: (driverId: string) => Promise<boolean>;
+  completeOrderWithDeduction: (orderId: string, driverId: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -467,6 +470,38 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await refreshDrivers();
   }, [refreshDrivers]);
 
+  // Driver rejects an assigned order (deducts Rp500 penalty)
+  const driverRejectOrder = useCallback(async (orderId: string, driverIdParam: string) => {
+    const { error } = await supabase.rpc('driver_reject_order', {
+      p_order_id: orderId,
+      p_driver_id: driverIdParam,
+    });
+    if (error) throw error;
+    await refreshOrders();
+    await refreshDrivers();
+  }, [refreshOrders, refreshDrivers]);
+
+  // Toggle driver online/offline status
+  const toggleDriverOnline = useCallback(async (driverIdParam: string): Promise<boolean> => {
+    const { data, error } = await supabase.rpc('toggle_driver_online', {
+      p_driver_id: driverIdParam,
+    });
+    if (error) throw error;
+    await refreshDrivers();
+    return data as boolean;
+  }, [refreshDrivers]);
+
+  // Complete order with automatic bagi hasil deduction from driver balance
+  const completeOrderWithDeduction = useCallback(async (orderId: string, driverIdParam: string) => {
+    const { error } = await supabase.rpc('complete_order_with_deduction', {
+      p_order_id: orderId,
+      p_driver_id: driverIdParam,
+    });
+    if (error) throw error;
+    await refreshOrders();
+    await refreshDrivers();
+  }, [refreshOrders, refreshDrivers]);
+
   return (
     <DataContext.Provider
       value={{
@@ -509,6 +544,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         getDeliveryFee,
         refreshDistanceMatrix,
         updateDriverBalance,
+        driverRejectOrder,
+        toggleDriverOnline,
+        completeOrderWithDeduction,
       }}
     >
       {children}

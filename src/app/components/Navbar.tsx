@@ -38,7 +38,7 @@ export function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link to="/home" className="flex items-center">
-            <Logo size="md" />
+            <Logo size="md" showText={false} />
           </Link>
 
           {/* Desktop Menu */}

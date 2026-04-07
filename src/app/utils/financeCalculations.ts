@@ -98,16 +98,20 @@ export interface DriverBonus {
 
 export function calculateDriverBonus(
   dailyOrders: number,
-  weeklyOrders: number
+  _weeklyOrders: number = 0
 ): DriverBonus {
+  // New bonus scheme (per day):
+  // 10 orders  → Rp5.000
+  // 15 orders  → Rp7.000
+  // 20 orders  → Rp10.000
+  // 30+ orders → Rp15.000
   let dailyBonus = 0;
-  if (dailyOrders >= 15) dailyBonus = 30000;
-  else if (dailyOrders >= 10) dailyBonus = 15000;
-  else if (dailyOrders >= 5) dailyBonus = 5000;
+  if (dailyOrders >= 30) dailyBonus = 15000;
+  else if (dailyOrders >= 20) dailyBonus = 10000;
+  else if (dailyOrders >= 15) dailyBonus = 7000;
+  else if (dailyOrders >= 10) dailyBonus = 5000;
 
-  const weeklyBonus = weeklyOrders >= 50 ? 50000 : 0;
-
-  return { dailyBonus, weeklyBonus, totalBonus: dailyBonus + weeklyBonus };
+  return { dailyBonus, weeklyBonus: 0, totalBonus: dailyBonus };
 }
 
 // Generate 3-digit unique payment code (100-999)

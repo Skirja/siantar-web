@@ -19,12 +19,13 @@ import { toast } from "sonner";
 import type { TablesInsert } from "../../../lib/database.types";
 
 const VILLAGES: Village[] = [
-  "Desa Sekuningan Baru",
   "Desa Bukit Sungkai",
-  "Desa Bangun Jaya",
+  "Desa Sekuningan Baru",
   "Desa Balai Riam (Pusat Kecamatan)",
-  "Desa Natai Kondang",
+  "Desa Bangun Jaya",
   "Desa Lupu Peruca",
+  "Desa Natai Kondang",
+  "Desa Ajang",
 ];
 
 const PACKAGE_CATEGORIES = [

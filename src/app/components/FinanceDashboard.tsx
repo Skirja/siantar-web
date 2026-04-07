@@ -68,27 +68,34 @@ export function FinanceDashboard() {
     const totalOrders = filteredOrders.length;
     const totalRevenue = filteredOrders.reduce((sum, o) => sum + (o.total ?? 0), 0);
     const totalDeliveryFees = filteredOrders.reduce((sum, o) => sum + (o.delivery_fee ?? 0), 0);
+    const totalMarkupIncome = filteredOrders.reduce((sum, o) => sum + (o.service_fee ?? 0), 0);
 
-    let totalAdminProfit = 0;
+    let totalAdminFromDelivery = 0;
     let totalDriverEarnings = 0;
 
     filteredOrders.forEach(order => {
       const adminSharePct = fees.admin_share_pct / 100;
       const driverSharePct = fees.driver_share_pct / 100;
       const adminFromDelivery = (order.delivery_fee ?? 0) * adminSharePct;
-      
-      totalAdminProfit += adminFromDelivery + (order.service_fee ?? 0) + (order.admin_fee ?? 0);
+      totalAdminFromDelivery += adminFromDelivery + (order.admin_fee ?? 0);
       totalDriverEarnings += (order.delivery_fee ?? 0) * driverSharePct;
     });
+
+    const totalAdminProfit = totalAdminFromDelivery + totalMarkupIncome;
+
+    // Total saldo admin dari setoran driver (akumulasi balances)
+    const totalDriverDeposits = drivers.reduce((sum, d) => sum + ((d as any).balance ?? 0), 0);
 
     return {
       totalOrders,
       totalRevenue,
       totalDeliveryFees,
+      totalMarkupIncome,
       totalAdminProfit,
       totalDriverEarnings,
+      totalDriverDeposits,
     };
-  }, [filteredOrders, fees]);
+  }, [filteredOrders, fees, drivers]);
 
   // Prepare chart data - orders per day
   const ordersPerDay = useMemo(() => {
@@ -452,7 +459,7 @@ export function FinanceDashboard() {
         </div>
       </div>
 
-      {/* Key Metrics Cards */}
+      {/* Key Metrics Cards - Row 1 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-sm p-6 text-white">
           <div className="flex items-center justify-between mb-2">
@@ -482,7 +489,7 @@ export function FinanceDashboard() {
             <TrendingUp className="w-5 h-5 opacity-80" />
           </div>
           <div className="text-2xl font-bold">{formatCurrency(metrics.totalAdminProfit)}</div>
-          <div className="text-xs opacity-75 mt-1">20% dari delivery fee + service fee</div>
+          <div className="text-xs opacity-75 mt-1">20% ongkir + markup item</div>
         </div>
 
         <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-sm p-6 text-white">
@@ -492,6 +499,27 @@ export function FinanceDashboard() {
           </div>
           <div className="text-2xl font-bold">{formatCurrency(metrics.totalDriverEarnings)}</div>
           <div className="text-xs opacity-75 mt-1">80% dari delivery fee</div>
+        </div>
+      </div>
+
+      {/* Key Metrics Cards - Row 2 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl shadow-sm p-6 text-white">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm opacity-90">Biaya Layanan (Markup)</div>
+            <Store className="w-5 h-5 opacity-80" />
+          </div>
+          <div className="text-2xl font-bold">{formatCurrency(metrics.totalMarkupIncome)}</div>
+          <div className="text-xs opacity-75 mt-1">Rp1.000/item dari {metrics.totalOrders} order</div>
+        </div>
+
+        <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-sm p-6 text-white">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm opacity-90">Total Saldo Deposit Driver</div>
+            <Truck className="w-5 h-5 opacity-80" />
+          </div>
+          <div className="text-2xl font-bold">{formatCurrency(metrics.totalDriverDeposits)}</div>
+          <div className="text-xs opacity-75 mt-1">Akumulasi deposit {drivers.length} driver</div>
         </div>
       </div>
 

@@ -396,6 +396,7 @@ export type Database = {
           image_url: string | null
           is_active: boolean
           is_open: boolean
+          markup_enabled: boolean | null
           name: string
           updated_at: string
           village: string
@@ -407,6 +408,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           is_open?: boolean
+          markup_enabled?: boolean | null
           name: string
           updated_at?: string
           village: string
@@ -418,6 +420,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           is_open?: boolean
+          markup_enabled?: boolean | null
           name?: string
           updated_at?: string
           village?: string
@@ -628,6 +631,10 @@ export type Database = {
         Args: { p_driver_id: string; p_driver_name: string; p_order_id: string }
         Returns: string
       }
+      complete_order_with_deduction: {
+        Args: { p_driver_id: string; p_order_id: string }
+        Returns: undefined
+      }
       create_order: {
         Args: {
           p_address: string
@@ -658,8 +665,13 @@ export type Database = {
       }
       delete_driver: { Args: { p_driver_id: string }; Returns: undefined }
       delete_order: { Args: { p_order_id: string }; Returns: undefined }
+      driver_reject_order: {
+        Args: { p_driver_id: string; p_order_id: string }
+        Returns: undefined
+      }
       reject_order: { Args: { p_order_id: string }; Returns: string }
       set_user_admin: { Args: { user_email: string }; Returns: undefined }
+      toggle_driver_online: { Args: { p_driver_id: string }; Returns: boolean }
       update_driver_balance: {
         Args: { p_amount: number; p_driver_id: string }
         Returns: undefined

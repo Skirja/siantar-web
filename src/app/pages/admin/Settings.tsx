@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router";
-import { ArrowLeft, CreditCard, DollarSign, Save, Loader2, Plus, Trash2, Edit2, X, MapPin } from "lucide-react";
+import { ArrowLeft, CreditCard, DollarSign, Save, Loader2, Plus, Trash2, Edit2, X, MapPin, Tag, ToggleLeft, ToggleRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useData } from "../../contexts/DataContext";
 import { supabase } from "../../../lib/supabase";
@@ -9,15 +9,14 @@ import { Logo } from "../../components/Logo";
 import { formatCurrency } from "../../utils/financeCalculations";
 
 export function Settings() {
-  const { role, isAuthenticated } = useAuth();
+  const { role, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const { paymentAccounts, refreshPaymentAccounts, feeSettings, refreshFeeSettings, distanceMatrix, refreshDistanceMatrix } = useData();
+  const { paymentAccounts, refreshPaymentAccounts, feeSettings, refreshFeeSettings, distanceMatrix, refreshDistanceMatrix, outlets, updateOutlet } = useData();
+  const [markupLoading, setMarkupLoading] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [feeForm, setFeeForm] = useState({
     cost_per_km: 2000,
-    service_fee: 2000,
-    admin_fee: 2000,
     driver_share_pct: 80,
     admin_share_pct: 20,
     min_distance_km: 1,
@@ -42,23 +41,42 @@ export function Settings() {
   const villages = Array.from(new Set(distanceMatrix.map((d) => d.from_village))).sort();
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated || role !== "admin") {
       navigate("/login-admin");
     }
-  }, [isAuthenticated, role, navigate]);
+  }, [isAuthenticated, role, navigate, authLoading]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (Object.keys(feeSettings).length > 0) {
       setFeeForm({
         cost_per_km: feeSettings.cost_per_km || 2000,
-        service_fee: feeSettings.service_fee || 2000,
-        admin_fee: feeSettings.admin_fee || 2000,
         driver_share_pct: feeSettings.driver_share_pct || 80,
         admin_share_pct: feeSettings.admin_share_pct || 20,
         min_distance_km: feeSettings.min_distance_km || 1,
       });
     }
   }, [feeSettings]);
+
+  const handleToggleMarkup = async (outletId: string, currentValue: boolean) => {
+    setMarkupLoading(outletId);
+    try {
+      await updateOutlet(outletId, { markup_enabled: !currentValue } as any);
+      toast.success(`Markup ${!currentValue ? 'diaktifkan' : 'dinonaktifkan'} untuk outlet ini`);
+    } catch (err: any) {
+      toast.error(err.message || "Gagal mengubah markup");
+    } finally {
+      setMarkupLoading(null);
+    }
+  };
 
   const handleSaveFees = async () => {
     setLoading(true);
@@ -205,20 +223,13 @@ export function Settings() {
             <DollarSign className="w-6 h-6 text-orange-500" />
             <h2 className="text-lg font-semibold text-gray-900">Konfigurasi Fee</h2>
           </div>
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg text-sm text-blue-800">
+            <strong>Info:</strong> Markup Rp1.000/item dikenakan otomatis ke semua menu (bisa diatur per outlet di bawah). Service Fee & Admin Fee tetap dihapus.
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Biaya per KM (Rp)</label>
               <input type="number" value={feeForm.cost_per_km} onChange={(e) => setFeeForm({ ...feeForm, cost_per_km: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Service Fee (Rp)</label>
-              <input type="number" value={feeForm.service_fee} onChange={(e) => setFeeForm({ ...feeForm, service_fee: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Admin Fee per Pesanan (Rp)</label>
-              <input type="number" value={feeForm.admin_fee} onChange={(e) => setFeeForm({ ...feeForm, admin_fee: parseInt(e.target.value) || 0 })}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
             </div>
             <div>
@@ -241,6 +252,44 @@ export function Settings() {
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
             <span>Simpan Pengaturan</span>
           </button>
+        </section>
+
+        {/* Markup Toggle Per Outlet */}
+        <section className="bg-white rounded-xl shadow-sm p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Tag className="w-6 h-6 text-orange-500" />
+            <h2 className="text-lg font-semibold text-gray-900">Toggle Markup Per Outlet</h2>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">Aktifkan/nonaktifkan markup <strong>Rp1.000 per item</strong> pada setiap outlet. Jika OFF, customer membayar harga asli outlet.</p>
+          <div className="space-y-3">
+            {outlets.map((outlet) => {
+              const isOn = (outlet as any).markup_enabled !== false;
+              return (
+                <div key={outlet.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <div className="font-medium text-gray-900">{outlet.name}</div>
+                    <div className="text-sm text-gray-500">{outlet.village}</div>
+                  </div>
+                  <button
+                    onClick={() => handleToggleMarkup(outlet.id, isOn)}
+                    disabled={markupLoading === outlet.id}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                      isOn ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    } disabled:opacity-50`}
+                  >
+                    {markupLoading === outlet.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : isOn ? (
+                      <ToggleRight className="w-5 h-5" />
+                    ) : (
+                      <ToggleLeft className="w-5 h-5" />
+                    )}
+                    <span>Markup {isOn ? 'ON (+Rp1.000/item)' : 'OFF (Harga Asli)'}</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </section>
 
         {/* Distance Fee Matrix */}

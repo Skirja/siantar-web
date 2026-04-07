@@ -34,17 +34,18 @@ const VILLAGE_GROUPS = [
   {
     label: "Wilayah 1 (Dekat)",
     villages: [
+      "Desa Bukit Sungkai",
+      "Desa Sekuningan Baru",
       "Desa Balai Riam (Pusat Kecamatan)",
-      "Desa Natai Kondang",
-      "Desa Lupu Peruca",
+      "Desa Bangun Jaya",
     ],
   },
   {
     label: "Wilayah 2 (Jauh)",
     villages: [
-      "Desa Sekuningan Baru",
-      "Desa Bukit Sungkai",
-      "Desa Bangun Jaya",
+      "Desa Lupu Peruca",
+      "Desa Natai Kondang",
+      "Desa Ajang",
     ],
   },
 ];
