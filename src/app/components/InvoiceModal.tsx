@@ -134,6 +134,11 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
   // Dashed line divider
   const dashedLine = "- ".repeat(30);
 
+  const markup = order.service_fee || 0;
+  const legacyAdminFee = order.admin_fee || 0;
+  const storeSubtotal = order.subtotal - markup;
+  const storeGrandTotal = storeSubtotal - legacyAdminFee;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="relative bg-gray-100 rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -285,7 +290,9 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
               <div style={{ marginBottom: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginTop: '2px' }}>
                   <span>Subtotal (items):</span>
-                  <span style={{ fontWeight: 'bold' }}>{formatCurrency(order.subtotal)}</span>
+                  <span style={{ fontWeight: 'bold' }}>
+                    {type === "customer" ? formatCurrency(order.subtotal) : formatCurrency(storeSubtotal)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -299,15 +306,11 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
             <div style={{ marginBottom: '8px', fontSize: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                 <span>Subtotal:</span>
-                <span>{formatCurrency(order.subtotal)}</span>
+                <span>{type === "customer" ? formatCurrency(order.subtotal) : formatCurrency(storeSubtotal)}</span>
               </div>
 
               {type === "customer" && (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span>Service Fee:</span>
-                    <span>{formatCurrency(order.service_fee)}</span>
-                  </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span>Delivery ({order.distance}km):</span>
                     <span>{formatCurrency(order.delivery_fee)}</span>
@@ -315,10 +318,10 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
                 </>
               )}
 
-              {type === "outlet" && (
+              {type === "outlet" && legacyAdminFee > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                   <span>Admin Fee:</span>
-                  <span>-{formatCurrency(order.admin_fee)}</span>
+                  <span>-{formatCurrency(legacyAdminFee)}</span>
                 </div>
               )}
             </div>
@@ -332,7 +335,7 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
               <span>
                 {type === "customer"
                   ? formatCurrency(order.total)
-                  : formatCurrency(order.subtotal - order.admin_fee)}
+                  : formatCurrency(storeGrandTotal)}
               </span>
             </div>
 
@@ -393,10 +396,12 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
               ) : (
                 <>
                   <div>INVOICE OUTLET</div>
-                  <div style={{ marginTop: '4px' }}>Total: {formatCurrency(order.subtotal - order.admin_fee)}</div>
-                  <div style={{ fontSize: '8px', marginTop: '4px' }}>
-                    *Setelah dipotong biaya admin
-                  </div>
+                  <div style={{ marginTop: '4px' }}>Total: {formatCurrency(storeGrandTotal)}</div>
+                  {legacyAdminFee > 0 && (
+                    <div style={{ fontSize: '8px', marginTop: '4px' }}>
+                      *Setelah dipotong biaya admin
+                    </div>
+                  )}
                 </>
               )}
             </div>

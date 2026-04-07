@@ -1,7 +1,7 @@
 // Finance calculation constants (defaults, overridden by fee_settings from DB)
 export const DEFAULT_COST_PER_KM = 2000;
-export const DEFAULT_SERVICE_FEE = 2000;
-export const DEFAULT_ADMIN_FEE = 2000; // Biaya admin dari outlet
+export const DEFAULT_SERVICE_FEE = 0;
+export const DEFAULT_ADMIN_FEE = 0;
 export const DEFAULT_DRIVER_SHARE_PCT = 80;
 export const DEFAULT_ADMIN_SHARE_PCT = 20;
 export const DEFAULT_MIN_DISTANCE_KM = 1;
@@ -28,7 +28,7 @@ export function getDefaultFeeSettings(): FeeSettings {
 
 export interface OrderFinance {
   subtotal: number;
-  adminFee: number; // Biaya admin dari outlet (Rp 2000/pesanan)
+  adminFee: number;
   serviceFee: number;
   deliveryFee: number;
   distance: number;
@@ -36,38 +36,44 @@ export interface OrderFinance {
   isMinimumChargeApplied: boolean;
   total: number;
   driverEarning: number;
-  amountToStore: number; // Subtotal - admin_fee (yang dibayar ke outlet)
+  amountToStore: number;
   setoranToAdmin: number;
   adminProfit: number;
 }
 
 export function calculateOrderFinance(
-  subtotal: number,
+  subtotal: number, // This should be the marked-up subtotal (store_price + 1000) * qty
   distance: number,
+  totalItems: number = 0, // Count of items to extract the Rp1000 marker
   fees: FeeSettings = getDefaultFeeSettings(),
   directDeliveryFee?: number
 ): OrderFinance {
   const chargedDistance = Math.max(distance, fees.min_distance_km);
   const isMinimumChargeApplied = distance < fees.min_distance_km;
-  const deliveryFee = directDeliveryFee !== undefined ? directDeliveryFee : chargedDistance * fees.cost_per_km;
+  // Use distance matrix fee if provided and > 0, otherwise fallback to KM * 2000
+  const deliveryFee = (directDeliveryFee !== undefined && directDeliveryFee > 0) ? directDeliveryFee : chargedDistance * fees.cost_per_km;
   const driverSharePct = fees.driver_share_pct / 100;
   const adminSharePct = fees.admin_share_pct / 100;
+  
   const driverEarning = deliveryFee * driverSharePct;
   const adminFromDelivery = deliveryFee * adminSharePct;
 
-  // Admin fee = Rp 2000 per pesanan dari outlet
-  const adminFee = fees.admin_fee;
-  const adminProfit = adminFromDelivery + fees.service_fee + adminFee;
-  const total = subtotal + fees.service_fee + deliveryFee;
+  // New logic: markup is 1000 per item
+  const itemMarkupTotal = 1000 * totalItems;
+  const adminFee = 0; // Legacy admin fee is removed
+  const serviceFee = 0; // Legacy service fee is removed
 
-  // Amount to store = subtotal - admin_fee (outlet menerima dikurangi biaya admin)
-  const amountToStore = subtotal - adminFee;
-  const setoranToAdmin = fees.service_fee + adminFromDelivery + adminFee;
+  const adminProfit = adminFromDelivery + itemMarkupTotal;
+  const total = subtotal + deliveryFee; // Subtotal already heavily includes the markup
+
+  // Amount to store is raw total minus the app markup
+  const amountToStore = subtotal - itemMarkupTotal;
+  const setoranToAdmin = adminFromDelivery + itemMarkupTotal;
 
   return {
     subtotal,
     adminFee,
-    serviceFee: fees.service_fee,
+    serviceFee,
     deliveryFee,
     distance,
     chargedDistance,

@@ -13,14 +13,26 @@ import {
 } from "../../utils/financeCalculations";
 import type { TablesInsert } from "../../../lib/database.types";
 
-const VILLAGES: Village[] = [
-  "Desa Sekuningan Baru",
-  "Desa Bukit Sungkai",
-  "Desa Bangun Jaya",
-  "Desa Balai Riam (Pusat Kecamatan)",
-  "Desa Natai Kondang",
-  "Desa Lupu Peruca",
+const VILLAGE_GROUPS = [
+  {
+    label: "Wilayah 1 (Dekat)",
+    villages: [
+      "Desa Balai Riam (Pusat Kecamatan)",
+      "Desa Natai Kondang",
+      "Desa Lupu Peruca",
+    ] as Village[],
+  },
+  {
+    label: "Wilayah 2 (Jauh)",
+    villages: [
+      "Desa Sekuningan Baru",
+      "Desa Bukit Sungkai",
+      "Desa Bangun Jaya",
+    ] as Village[],
+  },
 ];
+
+const SAME_VILLAGE_FLAT_FEE = 7000;
 
 export function Checkout() {
   const { items, subtotal: cartSubtotal, clearCart } = useCart();
@@ -61,7 +73,10 @@ export function Checkout() {
 
   // Calculate distance and delivery fee from matrix
   const rawDistance = village && outlet ? getDistance(village, outlet.village) : 0;
-  const deliveryFeeFromMatrix = village && outlet ? getDeliveryFee(village, outlet.village) : 0;
+  const isSameVillage = village !== "" && outlet && village === outlet.village;
+  const deliveryFeeFromMatrix = isSameVillage
+    ? SAME_VILLAGE_FLAT_FEE
+    : (village && outlet ? getDeliveryFee(village, outlet.village) : 0);
   const distance = rawDistance;
 
   // Build FeeSettings from context data
@@ -74,7 +89,8 @@ export function Checkout() {
     min_distance_km: feeSettings.min_distance_km ?? getDefaultFeeSettings().min_distance_km,
   };
 
-  const finance = calculateOrderFinance(cartSubtotal, distance, fees, deliveryFeeFromMatrix);
+  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  const finance = calculateOrderFinance(cartSubtotal, distance, totalItems, fees, deliveryFeeFromMatrix);
 
   const handleOrder = async () => {
     if (!name || !phone || !village || !address) {
@@ -121,7 +137,7 @@ export function Checkout() {
         distance,
         charged_distance: finance.chargedDistance,
         delivery_fee: finance.deliveryFee,
-        service_fee: finance.serviceFee,
+        service_fee: totalItems * 1000, // Storing item markup in service_fee for backward compat
         admin_fee: finance.adminFee,
         total: finance.total,
         payment_method: paymentMethod === "cod" ? "cod" : "transfer",
@@ -227,10 +243,14 @@ export function Checkout() {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                   >
                     <option value="">-- Pilih Desa --</option>
-                    {VILLAGES.map((v) => (
-                      <option key={v} value={v}>
-                        {v}
-                      </option>
+                    {VILLAGE_GROUPS.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.villages.map((v) => (
+                          <option key={v} value={v}>
+                            {v}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>
@@ -250,8 +270,8 @@ export function Checkout() {
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                     <p className="text-sm text-orange-800">
                       <MapPin className="w-4 h-4 inline mr-1" />
-                      {village === outlet?.village
-                        ? `Ongkir sesama desa: Rp 5.000`
+                      {isSameVillage
+                        ? `Ongkir sesama desa: ${formatCurrency(SAME_VILLAGE_FLAT_FEE)}`
                         : `Biaya pengiriman dihitung Rp ${fees.cost_per_km.toLocaleString("id-ID")}/km`
                       }
                     </p>
@@ -352,12 +372,6 @@ export function Checkout() {
                   <span className="text-gray-600">Subtotal Makanan</span>
                   <span className="text-gray-900">
                     {formatCurrency(finance.subtotal)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Biaya Layanan</span>
-                  <span className="text-gray-900">
-                    {formatCurrency(finance.serviceFee)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">

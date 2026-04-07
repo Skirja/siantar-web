@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Download, TrendingUp, DollarSign, Users, Calendar, FileSpreadsheet } from "lucide-react";
+import { Download, TrendingUp, DollarSign, Users, Calendar, FileSpreadsheet, Store, Truck } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useData } from "../contexts/DataContext";
 import { calculateOrderFinance, formatCurrency, getDefaultFeeSettings, type FeeSettings } from "../utils/financeCalculations";
@@ -73,9 +73,12 @@ export function FinanceDashboard() {
     let totalDriverEarnings = 0;
 
     filteredOrders.forEach(order => {
-      const finance = calculateOrderFinance(order.subtotal ?? 0, order.distance ?? 0, fees);
-      totalAdminProfit += finance.adminProfit;
-      totalDriverEarnings += finance.driverEarning;
+      const adminSharePct = fees.admin_share_pct / 100;
+      const driverSharePct = fees.driver_share_pct / 100;
+      const adminFromDelivery = (order.delivery_fee ?? 0) * adminSharePct;
+      
+      totalAdminProfit += adminFromDelivery + (order.service_fee ?? 0) + (order.admin_fee ?? 0);
+      totalDriverEarnings += (order.delivery_fee ?? 0) * driverSharePct;
     });
 
     return {
@@ -123,14 +126,18 @@ export function FinanceDashboard() {
     filteredOrders.forEach(order => {
       const date = new Date(order.created_at);
       const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      const finance = calculateOrderFinance(order.subtotal ?? 0, order.distance ?? 0, fees);
+      
+      const adminSharePct = fees.admin_share_pct / 100;
+      const driverSharePct = fees.driver_share_pct / 100;
+      const adminProfit = ((order.delivery_fee ?? 0) * adminSharePct) + (order.service_fee ?? 0) + (order.admin_fee ?? 0);
+      const driverEarning = (order.delivery_fee ?? 0) * driverSharePct;
 
       if (!dayMap.has(dayKey)) {
         dayMap.set(dayKey, { admin: 0, driver: 0, timestamp: date.getTime() });
       }
       const current = dayMap.get(dayKey)!;
-      current.admin += finance.adminProfit;
-      current.driver += finance.driverEarning;
+      current.admin += adminProfit;
+      current.driver += driverEarning;
     });
 
     return Array.from(dayMap.entries())
@@ -155,7 +162,12 @@ export function FinanceDashboard() {
     filteredOrders.forEach(order => {
       if (!order.driver_id || !order.driver_name) return;
 
-      const finance = calculateOrderFinance(order.subtotal ?? 0, order.distance ?? 0, fees);
+      const driverSharePct = fees.driver_share_pct / 100;
+      const adminSharePct = fees.admin_share_pct / 100;
+      const driverEarning = (order.delivery_fee ?? 0) * driverSharePct;
+      const adminFromDelivery = (order.delivery_fee ?? 0) * adminSharePct;
+      const setoranAmount = adminFromDelivery + (order.service_fee ?? 0) + (order.admin_fee ?? 0);
+      
       const current = stats.get(order.driver_id) || {
         name: order.driver_name,
         orders: 0,
@@ -166,12 +178,67 @@ export function FinanceDashboard() {
       stats.set(order.driver_id, {
         ...current,
         orders: current.orders + 1,
-        earnings: current.earnings + finance.driverEarning,
-        setoran: current.setoran + finance.driverEarning,
+        earnings: current.earnings + driverEarning,
+        setoran: current.setoran + setoranAmount,
       });
     });
 
     return Array.from(stats.values());
+  }, [filteredOrders, fees]);
+
+  // Outlet revenue stats
+  const outletStats = useMemo(() => {
+    const stats = new Map<string, { name: string; orders: number; revenue: number; deliveryFees: number }>();
+
+    filteredOrders.forEach(order => {
+      const current = stats.get(order.outlet_id) || {
+        name: order.outlet_name,
+        orders: 0,
+        revenue: 0,
+        deliveryFees: 0,
+      };
+
+      stats.set(order.outlet_id, {
+        ...current,
+        orders: current.orders + 1,
+        revenue: current.revenue + (order.subtotal ?? 0),
+        deliveryFees: current.deliveryFees + (order.delivery_fee ?? 0),
+      });
+    });
+
+    return Array.from(stats.values()).sort((a, b) => b.revenue - a.revenue);
+  }, [filteredOrders]);
+
+  // Delivery fee breakdown by route
+  const deliveryFeeBreakdown = useMemo(() => {
+    const routeMap = new Map<string, { count: number; totalFee: number; totalDistance: number; adminShare: number; driverShare: number }>();
+
+    filteredOrders.forEach(order => {
+      if (!order.delivery_fee) return;
+      const routeKey = order.customer_village || 'Tidak diketahui';
+      const adminSharePct = fees.admin_share_pct / 100;
+      const driverSharePct = fees.driver_share_pct / 100;
+
+      const current = routeMap.get(routeKey) || {
+        count: 0,
+        totalFee: 0,
+        totalDistance: 0,
+        adminShare: 0,
+        driverShare: 0,
+      };
+
+      routeMap.set(routeKey, {
+        count: current.count + 1,
+        totalFee: current.totalFee + order.delivery_fee,
+        totalDistance: current.totalDistance + (order.distance ?? 0),
+        adminShare: current.adminShare + (order.delivery_fee * adminSharePct),
+        driverShare: current.driverShare + (order.delivery_fee * driverSharePct),
+      });
+    });
+
+    return Array.from(routeMap.entries())
+      .map(([village, data]) => ({ village, ...data }))
+      .sort((a, b) => b.totalFee - a.totalFee);
   }, [filteredOrders, fees]);
 
   // Export to Excel
@@ -200,7 +267,11 @@ export function FinanceDashboard() {
 
     // Order details
     const orderDetails = filteredOrders.map(order => {
-      const finance = calculateOrderFinance(order.subtotal ?? 0, order.distance ?? 0, fees);
+      const adminSharePct = fees.admin_share_pct / 100;
+      const driverSharePct = fees.driver_share_pct / 100;
+      const adminProfit = ((order.delivery_fee ?? 0) * adminSharePct) + (order.service_fee ?? 0) + (order.admin_fee ?? 0);
+      const driverEarning = (order.delivery_fee ?? 0) * driverSharePct;
+      
       return {
         "Order ID": order.id,
         "Tanggal": new Date(order.created_at).toLocaleString('id-ID'),
@@ -211,8 +282,8 @@ export function FinanceDashboard() {
         "Service Fee": order.service_fee,
         "Delivery Fee": order.delivery_fee,
         "Total": order.total,
-        "Admin Profit": finance.adminProfit,
-        "Driver Earning": finance.driverEarning,
+        "Admin Profit": adminProfit,
+        "Driver Earning": driverEarning,
         "Status": order.status,
         "Payment": order.payment_method === "cod" ? "COD" : `Transfer ${order.payment_provider || ""}`,
       };
@@ -472,7 +543,7 @@ export function FinanceDashboard() {
           <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
             <div>
               <div className="font-medium text-orange-900">Admin Profit</div>
-              <div className="text-sm text-orange-700">20% delivery fee + service fee ({formatCurrency(fees.service_fee)}/order)</div>
+              <div className="text-sm text-orange-700">20% ongkir + akumulasi per item</div>
             </div>
             <div className="text-xl font-bold text-orange-600">{formatCurrency(metrics.totalAdminProfit)}</div>
           </div>
@@ -513,6 +584,102 @@ export function FinanceDashboard() {
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Outlet Revenue Report */}
+      {outletStats.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Store className="w-5 h-5 text-orange-500" />
+            Pendapatan Per Outlet
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Outlet</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Orders</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Revenue Menu</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Total Ongkir</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {outletStats.map((stat, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{stat.name}</td>
+                    <td className="px-4 py-3 text-right text-gray-600">{stat.orders}</td>
+                    <td className="px-4 py-3 text-right text-green-600 font-semibold">
+                      {formatCurrency(stat.revenue)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-blue-600 font-semibold">
+                      {formatCurrency(stat.deliveryFees)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Fee Breakdown */}
+      {deliveryFeeBreakdown.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Truck className="w-5 h-5 text-blue-500" />
+            Laporan Ongkir Per Wilayah
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Desa Tujuan</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Jumlah</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Total Jarak</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Total Ongkir</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Admin (20%)</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Driver (80%)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {deliveryFeeBreakdown.map((route, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{route.village}</td>
+                    <td className="px-4 py-3 text-right text-gray-600">{route.count}x</td>
+                    <td className="px-4 py-3 text-right text-gray-600">{route.totalDistance} km</td>
+                    <td className="px-4 py-3 text-right text-gray-900 font-semibold">
+                      {formatCurrency(route.totalFee)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-orange-600 font-semibold">
+                      {formatCurrency(route.adminShare)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-purple-600 font-semibold">
+                      {formatCurrency(route.driverShare)}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="bg-gray-50 font-semibold">
+                  <td className="px-4 py-3 text-gray-900">Total</td>
+                  <td className="px-4 py-3 text-right text-gray-600">
+                    {deliveryFeeBreakdown.reduce((s, r) => s + r.count, 0)}x
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-600">
+                    {deliveryFeeBreakdown.reduce((s, r) => s + r.totalDistance, 0)} km
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-900">
+                    {formatCurrency(deliveryFeeBreakdown.reduce((s, r) => s + r.totalFee, 0))}
+                  </td>
+                  <td className="px-4 py-3 text-right text-orange-600">
+                    {formatCurrency(deliveryFeeBreakdown.reduce((s, r) => s + r.adminShare, 0))}
+                  </td>
+                  <td className="px-4 py-3 text-right text-purple-600">
+                    {formatCurrency(deliveryFeeBreakdown.reduce((s, r) => s + r.driverShare, 0))}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>

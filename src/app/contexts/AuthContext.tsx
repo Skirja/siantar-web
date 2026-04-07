@@ -68,6 +68,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session) {
+        // Prevent clearing states if it's a customer accessing via localStorage.
+        const activeCustomerName = localStorage.getItem("sianter_customer_name");
+        if (activeCustomerName) {
+          return;
+        }
         setRole(null);
         setUsername("");
         setDriverId(null);

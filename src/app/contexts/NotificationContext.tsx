@@ -63,8 +63,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const channel = subscribeToTable("notifications", (payload) => {
         if (payload.eventType === "INSERT") {
           const newNotif = payload.new as DbNotification;
-          // ONLY add if phone matches exactly - no broadcast for customers
-          if (newNotif.customer_phone === customerPhone) {
+          
+          const normalizePhone = (p: string | null) => {
+            if (!p) return null;
+            let digits = p.replace(/\D/g, "");
+            if (digits.startsWith("0")) digits = "62" + digits.slice(1);
+            return digits;
+          };
+          
+          const notifPhone = normalizePhone(newNotif.customer_phone);
+          const userPhone = normalizePhone(customerPhone);
+          
+          // Add if phone matches exactly OR if target phone is null (broadcast)
+          if (!newNotif.customer_phone || notifPhone === userPhone) {
             setDbNotifications((prev) => [newNotif, ...prev]);
             toast.info(newNotif.title, { description: newNotif.message });
           }

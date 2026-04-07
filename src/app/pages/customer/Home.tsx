@@ -197,7 +197,10 @@ export function Home() {
                       <h3 className="font-medium text-sm truncate">{product.name}</h3>
                       <p className="text-xs text-gray-500 truncate">{outlet?.name}</p>
                       <p className="text-orange-600 font-bold text-sm">
-                        {formatCurrency(product.discount_price || product.price)}
+                        <span className="line-through text-gray-400 text-xs mr-1">
+                          {formatCurrency((product.discount_price || product.price) + 3000)}
+                        </span>
+                        {formatCurrency((product.discount_price || product.price) + 1000)}
                       </p>
                       <div className="flex items-center gap-1 mt-1">
                         <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
@@ -238,7 +241,10 @@ export function Home() {
                       <h3 className="font-medium text-sm truncate">{product.name}</h3>
                       <p className="text-xs text-gray-500 truncate">{outlet?.name}</p>
                       <p className="text-orange-600 font-bold text-sm">
-                        {formatCurrency(product.discount_price || product.price)}
+                        <span className="line-through text-gray-400 text-xs mr-1">
+                          {formatCurrency((product.discount_price || product.price) + 3000)}
+                        </span>
+                        {formatCurrency((product.discount_price || product.price) + 1000)}
                       </p>
                     </div>
                   </div>
@@ -400,7 +406,10 @@ export function Home() {
                     <h3 className="font-medium text-sm truncate">{product.name}</h3>
                     <p className="text-xs text-gray-500 truncate">{outlet?.name}</p>
                     <p className="text-orange-600 font-bold text-sm">
-                      {formatCurrency(product.discount_price || product.price)}
+                      <span className="line-through text-gray-400 text-xs mr-1">
+                        {formatCurrency((product.discount_price || product.price) + 3000)}
+                      </span>
+                      {formatCurrency((product.discount_price || product.price) + 1000)}
                     </p>
                   </div>
                 </div>

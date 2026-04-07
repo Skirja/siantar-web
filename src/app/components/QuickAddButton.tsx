@@ -28,7 +28,7 @@ export function QuickAddButton({ product, outletId, outletName }: QuickAddButton
   const hasExtras = product.extras && product.extras.length > 0;
 
   const calculatePrice = () => {
-    let price = product.discount_price ?? product.price;
+    let price = (product.discount_price ?? product.price) + 1000; // +Rp1.000 markup per item
 
     if (selectedVariant) {
       const variant = product.variants?.find((v) => v.id === selectedVariant);
@@ -47,8 +47,8 @@ export function QuickAddButton({ product, outletId, outletName }: QuickAddButton
     addItem({
       productId: product.id,
       name: product.name,
-      basePrice: product.discount_price ?? product.price,
-      price: product.discount_price ?? product.price,
+      basePrice: (product.discount_price ?? product.price) + 1000,
+      price: (product.discount_price ?? product.price) + 1000,
       outletId,
       outletName,
       imageUrl: product.image_url,
@@ -70,7 +70,7 @@ export function QuickAddButton({ product, outletId, outletName }: QuickAddButton
     addItem({
       productId: product.id,
       name: product.name,
-      basePrice: product.discount_price ?? product.price,
+      basePrice: (product.discount_price ?? product.price) + 1000,
       selectedVariant: variant,
       selectedExtras: extras,
       price,

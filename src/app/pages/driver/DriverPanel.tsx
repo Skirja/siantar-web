@@ -166,14 +166,10 @@ export function DriverPanel() {
   const todayStats = {
     orders: todaysCompleted.length,
     earning: todaysCompleted.reduce((sum, o) => {
-      const feeFromMatrix = o.customer_village ? getDeliveryFee(
-        orders.find(ord => ord.id === o.id)?.outlet_name ? "" : "",
-        o.customer_village
-      ) : 0;
-      const finance = calculateOrderFinance(o.subtotal, o.distance, {
+      const finance = calculateOrderFinance(o.subtotal, o.distance, 0, {
         cost_per_km: feeSettings.cost_per_km ?? 2000,
-        service_fee: feeSettings.service_fee ?? 2000,
-        admin_fee: feeSettings.admin_fee ?? 2000,
+        service_fee: feeSettings.service_fee ?? 0,
+        admin_fee: feeSettings.admin_fee ?? 0,
         driver_share_pct: feeSettings.driver_share_pct ?? 80,
         admin_share_pct: feeSettings.admin_share_pct ?? 20,
         min_distance_km: feeSettings.min_distance_km ?? 1,
@@ -315,10 +311,10 @@ export function DriverPanel() {
               ) : (
                 <div className="space-y-4">
                   {myOrders.map((order) => {
-                    const finance = calculateOrderFinance(order.subtotal, order.distance, {
+                    const finance = calculateOrderFinance(order.subtotal, order.distance, 0, {
                       cost_per_km: feeSettings.cost_per_km ?? 2000,
-                      service_fee: feeSettings.service_fee ?? 2000,
-                      admin_fee: feeSettings.admin_fee ?? 2000,
+                      service_fee: feeSettings.service_fee ?? 0,
+                      admin_fee: feeSettings.admin_fee ?? 0,
                       driver_share_pct: feeSettings.driver_share_pct ?? 80,
                       admin_share_pct: feeSettings.admin_share_pct ?? 20,
                       min_distance_km: feeSettings.min_distance_km ?? 1,
@@ -477,6 +473,60 @@ export function DriverPanel() {
                 </div>
               )}
             </div>
+
+            {/* Histori Order Hari Ini */}
+            {todaysCompleted.length > 0 && (
+              <div className="mt-8">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">
+                  Histori Hari Ini ({todaysCompleted.length})
+                </h2>
+                <div className="space-y-3">
+                  {todaysCompleted.map((order) => {
+                    const finance = calculateOrderFinance(order.subtotal, order.distance, 0, {
+                      cost_per_km: feeSettings.cost_per_km ?? 2000,
+                      service_fee: feeSettings.service_fee ?? 0,
+                      admin_fee: feeSettings.admin_fee ?? 0,
+                      driver_share_pct: feeSettings.driver_share_pct ?? 80,
+                      admin_share_pct: feeSettings.admin_share_pct ?? 20,
+                      min_distance_km: feeSettings.min_distance_km ?? 1,
+                    }, order.delivery_fee);
+
+                    return (
+                      <div
+                        key={order.id}
+                        className="bg-white rounded-xl shadow-sm p-4 flex items-center justify-between"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span className="font-medium text-gray-900 text-sm">
+                              {order.outlet_name}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {order.customer_village} • {order.distance} km
+                          </div>
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            {new Date(order.created_at).toLocaleTimeString("id-ID", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-green-600 font-semibold text-sm">
+                            +{formatCurrency(finance.driverEarning)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Total: {formatCurrency(finance.total)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div>
@@ -539,10 +589,10 @@ export function DriverPanel() {
                 </div>
 
                 {(() => {
-                  const finance = calculateOrderFinance(activeOrder.subtotal, activeOrder.distance, {
+                  const finance = calculateOrderFinance(activeOrder.subtotal, activeOrder.distance, 0, {
                     cost_per_km: feeSettings.cost_per_km ?? 2000,
-                    service_fee: feeSettings.service_fee ?? 2000,
-                    admin_fee: feeSettings.admin_fee ?? 2000,
+                    service_fee: feeSettings.service_fee ?? 0,
+                    admin_fee: feeSettings.admin_fee ?? 0,
                     driver_share_pct: feeSettings.driver_share_pct ?? 80,
                     admin_share_pct: feeSettings.admin_share_pct ?? 20,
                     min_distance_km: feeSettings.min_distance_km ?? 1,

@@ -47,17 +47,27 @@ import { NotificationManagement } from "../../components/NotificationManagement"
 import { DriverFinanceManagement } from "../../components/DriverFinanceManagement";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 
-const VILLAGES = [
-  "Desa Sekuningan Baru",
-  "Desa Bukit Sungkai",
-  "Desa Bangun Jaya",
-  "Desa Balai Riam (Pusat Kecamatan)",
-  "Desa Natai Kondang",
-  "Desa Lupu Peruca",
+const VILLAGE_GROUPS = [
+  {
+    label: "Wilayah 1 (Dekat)",
+    villages: [
+      "Desa Balai Riam (Pusat Kecamatan)",
+      "Desa Natai Kondang",
+      "Desa Lupu Peruca",
+    ],
+  },
+  {
+    label: "Wilayah 2 (Jauh)",
+    villages: [
+      "Desa Sekuningan Baru",
+      "Desa Bukit Sungkai",
+      "Desa Bangun Jaya",
+    ],
+  },
 ];
 
 export function AdminPanel() {
-  const { role, isAuthenticated, logout } = useAuth();
+  const { role, isAuthenticated, logout, loading } = useAuth();
   const navigate = useNavigate();
   const {
     orders,
@@ -114,10 +124,19 @@ export function AdminPanel() {
   const [showManualOrderModal, setShowManualOrderModal] = useState(false);
 
   useEffect(() => {
+    if (loading) return;
     if (!isAuthenticated || role !== "admin") {
       navigate("/login-admin");
     }
-  }, [isAuthenticated, role, navigate]);
+  }, [isAuthenticated, role, navigate, loading]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated || role !== "admin") return null;
 
@@ -125,16 +144,9 @@ export function AdminPanel() {
   const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
   const fees = getDefaultFeeSettings();
   const totalAdminProfit = orders.reduce((sum, o) => {
-    const finance = calculateOrderFinance(o.subtotal, o.distance, {
-      ...fees,
-      cost_per_km: fees.cost_per_km,
-      service_fee: fees.service_fee,
-      admin_fee: fees.admin_fee,
-      driver_share_pct: fees.driver_share_pct,
-      admin_share_pct: fees.admin_share_pct,
-      min_distance_km: fees.min_distance_km,
-    });
-    return sum + finance.adminProfit;
+    const adminSharePct = fees.admin_share_pct / 100;
+    const adminFromDelivery = (o.delivery_fee || 0) * adminSharePct;
+    return sum + adminFromDelivery + (o.service_fee || 0) + (o.admin_fee || 0);
   }, 0);
   const activeDrivers = drivers.filter((d) => d.is_active).length;
 
@@ -802,7 +814,11 @@ export function AdminPanel() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                 >
                   <option value="">-- Pilih Desa --</option>
-                  {VILLAGES.map((v) => <option key={v} value={v}>{v}</option>)}
+                  {VILLAGE_GROUPS.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.villages.map((v) => <option key={v} value={v}>{v}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
               </div>
               <div>

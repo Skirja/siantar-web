@@ -46,13 +46,16 @@ export function OrderTracking() {
       return;
     }
     
-    // Normalize both phones for comparison (strip non-digits)
-    const normalizePhone = (p: string) => (p || "").replace(/\D/g, "");
+    const normalizePhone = (p: string) => {
+      let digits = (p || "").replace(/\D/g, "");
+      if (digits.startsWith("0")) digits = "62" + digits.slice(1);
+      return digits;
+    };
     const orderPhone = normalizePhone(currentOrder.customer_phone);
     const userPhone = normalizePhone(activePhone);
     
-    // Check BOTH name and phone match
-    const owns = currentOrder.customer_name === customerName && orderPhone === userPhone && userPhone.length > 0;
+    // Check phone match specifically (ignoring strict name mapping to handle edits)
+    const owns = orderPhone === userPhone && userPhone.length > 0;
     setIsOwner(owns);
   }, [currentOrder, customerPhone]);
 
@@ -513,10 +516,7 @@ export function OrderTracking() {
                 <span className="text-gray-600">Subtotal</span>
                 <span className="text-gray-900">{formatCurrency(currentOrder.subtotal)}</span>
               </div>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-gray-600">Biaya Layanan</span>
-                <span className="text-gray-900">{formatCurrency(currentOrder.service_fee)}</span>
-              </div>
+
               <div className="flex justify-between text-sm mb-3">
                 <span className="text-gray-600">Biaya Pengiriman</span>
                 <span className="text-gray-900">{formatCurrency(currentOrder.delivery_fee)}</span>

@@ -30,14 +30,26 @@ interface ManualOrderCreationProps {
   onOrderCreated: (orderId: string) => void;
 }
 
-const VILLAGES: string[] = [
-  "Desa Sekuningan Baru",
-  "Desa Bukit Sungkai",
-  "Desa Bangun Jaya",
-  "Desa Balai Riam (Pusat Kecamatan)",
-  "Desa Natai Kondang",
-  "Desa Lupu Peruca",
+const VILLAGE_GROUPS = [
+  {
+    label: "Wilayah 1 (Dekat)",
+    villages: [
+      "Desa Balai Riam (Pusat Kecamatan)",
+      "Desa Natai Kondang",
+      "Desa Lupu Peruca",
+    ],
+  },
+  {
+    label: "Wilayah 2 (Jauh)",
+    villages: [
+      "Desa Sekuningan Baru",
+      "Desa Bukit Sungkai",
+      "Desa Bangun Jaya",
+    ],
+  },
 ];
+
+const SAME_VILLAGE_FLAT_FEE = 7000;
 
 export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCreationProps) {
   const { outlets, products, getProductsByOutlet, addOrder, getDistance, getDeliveryFee, feeSettings, orders } = useData();
@@ -92,7 +104,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
   // Calculate current item price
   const calculateItemPrice = () => {
     if (!selectedProduct) return 0;
-    const basePrice = selectedProduct.discount_price || selectedProduct.price;
+    const basePrice = (selectedProduct.discount_price || selectedProduct.price) + 1000;
     const variantPrice = selectedVariant ? selectedVariant.price_adjustment : 0;
     const extrasPrice = selectedExtras.reduce((sum, extra) => sum + extra.price, 0);
     return (basePrice + variantPrice + extrasPrice) * quantity;
@@ -129,9 +141,13 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
 
   // Calculate totals
   const subtotal = orderItems.reduce((sum, item) => sum + item.itemTotal, 0);
+  const totalItems = orderItems.reduce((sum, item) => sum + item.quantity, 0);
   const distance = customerVillage && selectedOutlet ? getDistance(customerVillage, selectedOutlet.village) : 0;
-  const deliveryFeeFromMatrix = customerVillage && selectedOutlet ? getDeliveryFee(customerVillage, selectedOutlet.village) : 0;
-  const finance = calculateOrderFinance(subtotal, distance, fees, deliveryFeeFromMatrix);
+  const isSameVillage = customerVillage !== "" && selectedOutlet && customerVillage === selectedOutlet.village;
+  const deliveryFeeFromMatrix = isSameVillage
+    ? SAME_VILLAGE_FLAT_FEE
+    : (customerVillage && selectedOutlet ? getDeliveryFee(customerVillage, selectedOutlet.village) : 0);
+  const finance = calculateOrderFinance(subtotal, distance, totalItems, fees, deliveryFeeFromMatrix);
   
   // Generate unique payment code for transfer
   // Collect existing codes from today's orders to avoid duplicates
@@ -205,7 +221,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
         distance,
         charged_distance: finance.chargedDistance,
         delivery_fee: finance.deliveryFee,
-        service_fee: finance.serviceFee,
+        service_fee: totalItems * 1000,
         admin_fee: finance.adminFee,
         total: finance.total,
         payment_method: paymentMethod,
@@ -428,10 +444,14 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6A00] focus:border-transparent"
                     >
                       <option value="">Pilih desa</option>
-                      {VILLAGES.map((village) => (
-                        <option key={village} value={village}>
-                          {village}
-                        </option>
+                      {VILLAGE_GROUPS.map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.villages.map((village) => (
+                            <option key={village} value={village}>
+                              {village}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   </div>

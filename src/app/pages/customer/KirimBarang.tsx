@@ -85,7 +85,7 @@ export function KirimBarang() {
     fromVillage && toVillage ? getDeliveryFee(fromVillage, toVillage) : 0;
   const distance = rawDistance;
   const subtotal = 0; // No item subtotal for delivery service
-  const finance = calculateOrderFinance(subtotal, distance, fees, deliveryFeeFromMatrix);
+  const finance = calculateOrderFinance(subtotal, distance, 0, fees, deliveryFeeFromMatrix);
 
   // Display weight (minimum 1kg)
   const displayWeight =
