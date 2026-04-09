@@ -24,7 +24,7 @@ export function BannerCarousel({ banners }: BannerCarouselProps) {
             <img
               src={banner.image_url}
               alt={banner.title}
-              className="w-full h-40 md:h-56 object-cover rounded-xl cursor-pointer"
+              className="w-full h-40 md:h-72 lg:h-80 object-cover rounded-xl cursor-pointer"
               onClick={() => banner.link_url && window.open(banner.link_url, "_blank")}
             />
           </div>

@@ -1,7 +1,7 @@
 import logoImg from "../../assets/siantar-aja-logo.png";
 
 interface LogoProps {
-  size?: "xs" | "sm" | "md" | "lg" | "xl";
+  size?: "xs" | "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
   className?: string;
   showText?: boolean;
 }
@@ -12,6 +12,9 @@ const sizeClasses = {
   md: "w-10 h-10",
   lg: "w-12 h-12",
   xl: "w-16 h-16",
+  "2xl": "w-24 h-24",
+  "3xl": "w-32 h-32",
+  "4xl": "w-48 h-48",
 };
 
 export function Logo({ size = "md", className = "", showText = true }: LogoProps) {

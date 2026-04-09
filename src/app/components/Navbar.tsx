@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router";
-import { ShoppingCart, User, LogOut } from "lucide-react";
+import { ShoppingCart, User, LogOut, Home, History } from "lucide-react";
 import { useCart } from "../contexts/CartContext";
 import { useAuth } from "../contexts/AuthContext";
 import { Logo } from "./Logo";
@@ -38,7 +38,7 @@ export function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link to="/home" className="flex items-center">
-            <Logo size="md" showText={false} />
+            <Logo size="xl" showText={false} />
           </Link>
 
           {/* Desktop Menu */}
@@ -129,6 +129,7 @@ export function Navbar() {
               location.pathname === "/home" ? "text-[#FF6A00]" : "text-gray-600"
             }`}
           >
+            <Home className="w-5 h-5" />
             <div className="text-xs font-medium">Beranda</div>
           </Link>
           <Link
@@ -151,6 +152,7 @@ export function Navbar() {
               location.pathname === "/home/history" ? "text-[#FF6A00]" : "text-gray-600"
             }`}
           >
+            <History className="w-5 h-5" />
             <div className="text-xs font-medium">Riwayat</div>
           </Link>
         </div>

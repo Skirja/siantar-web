@@ -379,7 +379,7 @@ export function AdminPanel() {
       {/* Sidebar Desktop */}
       <aside className="hidden lg:flex lg:flex-col w-64 bg-white border-r border-gray-200">
         <div className="p-6">
-          <Logo showText={false} size="lg" />
+          <Logo showText={false} size="2xl" />
           <p className="text-sm text-gray-600 mt-1">Admin Panel</p>
         </div>
         <nav className="flex-1 px-4 space-y-2">
@@ -406,33 +406,20 @@ export function AdminPanel() {
             <span>Settings</span>
           </Link>
         </nav>
-        <div className="p-4 space-y-2">
-          <Link to="/home" className="flex items-center gap-2 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg">
-            <ArrowLeft className="w-5 h-5" />
-            <span>Kembali</span>
-          </Link>
-          <button
-            onClick={() => setShowLogoutConfirm(true)}
-            className="w-full flex items-center gap-2 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
-          </button>
-        </div>
       </aside>
 
       {/* Sidebar Mobile */}
       {isSidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/50" onClick={() => setIsSidebarOpen(false)} />
-          <aside className="absolute left-0 top-0 bottom-0 w-64 bg-white">
+          <aside className="absolute left-0 top-0 bottom-0 w-64 bg-white flex flex-col">
             <div className="p-6 flex items-center justify-between">
-          <Logo showText={false} size="lg" />
+              <Logo showText={false} size="2xl" />
               <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <nav className="px-4 space-y-2">
+            <nav className="flex-1 px-4 space-y-2">
               {navigationItems.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -457,6 +444,15 @@ export function AdminPanel() {
                 <span>Settings</span>
               </Link>
             </nav>
+            <div className="p-4 border-t border-gray-100">
+              <button
+                onClick={() => { setShowLogoutConfirm(true); setIsSidebarOpen(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Logout</span>
+              </button>
+            </div>
           </aside>
         </div>
       )}

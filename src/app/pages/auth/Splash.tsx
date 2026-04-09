@@ -24,22 +24,8 @@ export function Splash() {
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="flex flex-col items-center"
       >
-        <Logo size="xl" className="mb-8" />
+        <Logo size="4xl" showText={false} className="mb-8" />
         
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-          className="text-center"
-        >
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-            SiAnter
-          </h1>
-          <p className="text-lg text-gray-600">
-            Pesan Antar Cepat & Mudah
-          </p>
-        </motion.div>
-
         {/* Loading indicator */}
         <motion.div
           initial={{ opacity: 0 }}
