@@ -106,7 +106,7 @@ export function DriverPanel() {
   const today = new Date().toDateString();
   const todaysCompleted = completedOrders.filter((o) => new Date(o.created_at).toDateString() === today);
 
-  const getFinance = (order: any) => calculateOrderFinance(order.subtotal, order.distance, 0, {
+  const getFinance = (order: any) => calculateOrderFinance(order.subtotal, order.distance, order.service_fee || 0, {
     cost_per_km: feeSettings.cost_per_km ?? 2000,
     service_fee: 0,
     admin_fee: 0,

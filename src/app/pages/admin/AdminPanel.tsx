@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, Link } from "react-router";
 import {
   Package,
@@ -29,6 +29,7 @@ import {
   DoorOpen,
   DoorClosed,
   AlertCircle,
+  Calendar,
 } from "lucide-react";
 import { useData } from "../../contexts/DataContext";
 import type { Order, Outlet, Profile } from "../../contexts/DataContext";
@@ -94,6 +95,49 @@ export function AdminPanel() {
   } = useData();
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "orders" | "drivers" | "stores" | "finance" | "informasi" | "keuangan-driver">("dashboard");
+  const [dateFilter, setDateFilter] = useState<"today" | "yesterday" | "all" | "custom">("today");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      // 1. Status Filter
+      if (statusFilter !== "all" && order.status !== statusFilter) return false;
+
+      // 2. Date Filter
+      const orderDate = new Date(order.created_at);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(0, 0, 0, 0);
+
+      if (dateFilter === "today") {
+        return orderDate >= today;
+      } else if (dateFilter === "yesterday") {
+        const tomorrow = new Date(yesterday);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return orderDate >= yesterday && orderDate < tomorrow;
+      } else if (dateFilter === "custom") {
+        if (customStartDate) {
+          const start = new Date(customStartDate);
+          start.setHours(0, 0, 0, 0);
+          if (orderDate < start) return false;
+        }
+        if (customEndDate) {
+          const end = new Date(customEndDate);
+          end.setHours(23, 59, 59, 999);
+          if (orderDate > end) return false;
+        }
+        return true;
+      }
+
+      return true; // "all"
+    });
+  }, [orders, dateFilter, statusFilter, customStartDate, customEndDate]);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteOutletConfirm, setShowDeleteOutletConfirm] = useState<string | null>(null);
@@ -501,8 +545,11 @@ export function AdminPanel() {
           {/* Orders */}
           {activeTab === "orders" && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Daftar Order</h2>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Daftar Order</h2>
+                  <p className="text-sm text-gray-600 mt-1">Kelola pesanan yang masuk dan sedang berjalan</p>
+                </div>
                 <button
                   onClick={() => setShowManualOrderModal(true)}
                   className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-[#FF6A00] to-orange-600 text-white rounded-lg hover:shadow-lg transition-all"
@@ -511,16 +558,94 @@ export function AdminPanel() {
                   <span className="font-medium">Buat Pesanan Manual</span>
                 </button>
               </div>
+
+              {/* Filter Section */}
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Date Filter */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Filter Tanggal</label>
+                    <div className="relative">
+                      <select
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value as any)}
+                        className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 appearance-none"
+                      >
+                        <option value="today">Hari Ini</option>
+                        <option value="yesterday">Kemarin</option>
+                        <option value="all">Semua Tanggal</option>
+                        <option value="custom">Pilih Tanggal</option>
+                      </select>
+                      <Calendar className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+
+                  {/* Custom Date Inputs */}
+                  {dateFilter === "custom" && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Mulai</label>
+                        <input
+                          type="date"
+                          value={customStartDate}
+                          onChange={(e) => setCustomStartDate(e.target.value)}
+                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Sampai</label>
+                        <input
+                          type="date"
+                          value={customEndDate}
+                          onChange={(e) => setCustomEndDate(e.target.value)}
+                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Status Filter */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Status Pesanan</label>
+                    <div className="relative">
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 appearance-none"
+                      >
+                        <option value="all">Semua Status</option>
+                        <option value="pending">Menunggu</option>
+                        <option value="processing">Diproses</option>
+                        <option value="driver_assigned">Driver Ditugaskan</option>
+                        <option value="going-to-store">Menuju Toko</option>
+                        <option value="picked-up">Diambil</option>
+                        <option value="on-delivery">Dikirim</option>
+                        <option value="completed">Selesai</option>
+                        <option value="cancelled">Dibatalkan</option>
+                      </select>
+                      <Truck className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+
+                  {/* Stats Summary */}
+                  <div className="flex items-end pb-1">
+                    <div className="text-xs text-gray-500 bg-orange-50 px-3 py-2 rounded-lg border border-orange-100 w-full text-center">
+                      Ditemukan <span className="font-bold text-orange-600">{filteredOrders.length}</span> pesanan
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {loadingOrders ? (
                 <div className="flex justify-center py-12"><Loader2 className="w-10 h-10 animate-spin text-orange-500" /></div>
-              ) : orders.length === 0 ? (
+              ) : filteredOrders.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-sm p-12 text-center">
                   <ShoppingBag className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500">Belum ada order</p>
                 </div>
               ) : (
-                orders.map((order) => {
-                  const finance = calculateOrderFinance(order.subtotal, order.distance, 0, {
+                filteredOrders.map((order) => {
+                  const finance = calculateOrderFinance(order.subtotal, order.distance, order.service_fee || 0, {
                       cost_per_km: fees.cost_per_km,
                       service_fee: 0,
                       admin_fee: 0,
