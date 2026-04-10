@@ -56,7 +56,7 @@ export function History() {
       case "completed":
         return "Selesai";
       case "pending":
-        return "Menunggu";
+        return "Menunggu Validasi";
       case "cancelled":
         return "Dibatalkan";
       case "processing":

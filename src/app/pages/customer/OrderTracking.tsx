@@ -10,7 +10,7 @@ import { formatCurrency } from "../../utils/financeCalculations";
 import { OrderItemsDetail } from "../../components/OrderItemsDetail";
 
 const orderStatuses: Array<{ id: string; label: string; icon: typeof Clock; description: string }> = [
-  { id: "pending", label: "Menunggu Konfirmasi", icon: Clock, description: "Pesanan menunggu konfirmasi admin" },
+  { id: "pending", label: "Menunggu Validasi", icon: Clock, description: "Pesanan sedang divalidasi oleh admin" },
   { id: "driver_assigned", label: "Driver Ditugaskan", icon: User, description: "Driver telah ditugaskan untuk pesanan Anda" },
   { id: "processing", label: "Diproses", icon: Clock, description: "Pesanan sedang diproses admin" },
   { id: "going-to-store", label: "Driver menuju toko", icon: MapPin, description: "Driver dalam perjalanan ke toko" },
@@ -520,9 +520,9 @@ export function OrderTracking() {
             <div className="flex items-start gap-3">
               <Clock className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-semibold text-yellow-900 mb-1">Menunggu Konfirmasi</h4>
+                <h4 className="font-semibold text-yellow-900 mb-1">Menunggu Validasi</h4>
                 <p className="text-sm text-yellow-800">
-                  Pesanan Anda sedang menunggu untuk diproses oleh admin. Driver akan segera ditugaskan.
+                  Pesanan Anda sedang divalidasi oleh admin untuk memastikan data pengiriman sudah benar.
                 </p>
               </div>
             </div>
