@@ -43,7 +43,7 @@ export function DriverPanel() {
   const { role, isAuthenticated, logout, driverId, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const {
-    orders, drivers, updateOrderStatus, feeSettings,
+    orders, drivers, updateOrderStatus, feeSettings, outlets,
     driverRejectOrder, toggleDriverOnline, completeOrderWithDeduction, updateDriverBalance
   } = useData();
   const [activeOrder, setActiveOrder] = useState<any>(null);
@@ -434,8 +434,24 @@ export function DriverPanel() {
                             </div>
                             <div className="flex items-start gap-2">
                               <MapPin className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
-                              <div>
-                                <div className="font-medium text-gray-900 mb-1">Antar ke:</div>
+                              <div className="flex-1">
+                                <div className="flex justify-between items-center mb-1">
+                                  <div className="font-medium text-gray-900">Antar ke:</div>
+                                  {order.customer_latitude && order.customer_longitude && (
+                                    <a
+                                      href={`https://www.google.com/maps/dir/?api=1&origin=${
+                                        outlets.find(o => o.id === order.outlet_id)?.latitude || ""
+                                      },${
+                                        outlets.find(o => o.id === order.outlet_id)?.longitude || ""
+                                      }&destination=${order.customer_latitude},${order.customer_longitude}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full hover:bg-green-200 font-semibold"
+                                    >
+                                      Buka Peta
+                                    </a>
+                                  )}
+                                </div>
                                 <div className="text-gray-600">{order.address}, {order.customer_village}</div>
                               </div>
                             </div>
@@ -643,8 +659,24 @@ export function DriverPanel() {
                   </div>
                   <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
-                    <div>
-                      <div className="font-medium text-gray-900 mb-1">Alamat Pengiriman:</div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-center mb-1">
+                        <div className="font-medium text-gray-900">Alamat Pengiriman:</div>
+                        {activeOrder.customer_latitude && activeOrder.customer_longitude && (
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&origin=${
+                              outlets.find(o => o.id === activeOrder.outlet_id)?.latitude || ""
+                            },${
+                              outlets.find(o => o.id === activeOrder.outlet_id)?.longitude || ""
+                            }&destination=${activeOrder.customer_latitude},${activeOrder.customer_longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full hover:bg-green-200 font-semibold"
+                          >
+                            Buka Peta
+                          </a>
+                        )}
+                      </div>
                       <div className="text-gray-600">{activeOrder.address}, {activeOrder.customer_village}</div>
                     </div>
                   </div>

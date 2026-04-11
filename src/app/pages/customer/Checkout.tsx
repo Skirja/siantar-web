@@ -10,6 +10,7 @@ import {
   formatCurrency,
   getDefaultFeeSettings,
   generateUniquePaymentCode,
+  calculateDistance,
 } from "../../utils/financeCalculations";
 import type { TablesInsert } from "../../../lib/database.types";
 
@@ -48,6 +49,11 @@ export function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "transfer-bri" | "transfer-dana">("cod");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // GPS State (Fitur #52)
+  const [customerCoords, setCustomerCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isGPSMode, setIsGPSMode] = useState(false);
+  const [gpsDistance, setGpsDistance] = useState(0);
+
   // Pre-fill customer info from auth session
   useEffect(() => {
     if (customerName && !name) setName(customerName);
@@ -79,7 +85,9 @@ export function Checkout() {
   const deliveryFeeFromMatrix = isSameVillage
     ? SAME_VILLAGE_FLAT_FEE
     : (village && outlet ? getDeliveryFee(village, outlet.village) : 0);
-  const distance = rawDistance;
+  
+  // Use GPS distance if available, otherwise fallback to matrix (Fitur #52)
+  const distance = isGPSMode ? gpsDistance : rawDistance;
 
   // Build FeeSettings from context data
   const fees = {
@@ -94,7 +102,39 @@ export function Checkout() {
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
   const isMarkupEnabled = outlet?.markup_enabled !== false;
   const markupAmount = isMarkupEnabled ? 1000 * totalItems : 0;
-  const finance = calculateOrderFinance(cartSubtotal, distance, markupAmount, fees, deliveryFeeFromMatrix);
+  const finance = calculateOrderFinance(cartSubtotal, distance, markupAmount, fees, deliveryFeeFromMatrix, isGPSMode);
+
+  // Handle GPS Location (Fitur #52)
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation tidak didukung browser Anda");
+      return;
+    }
+
+    if (!outlet?.latitude || !outlet?.longitude) {
+      toast.error("Outlet belum memiliki koordinat GPS. Gunakan tarif per desa.");
+      return;
+    }
+
+    toast.info("Mengambil lokasi Anda...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setCustomerCoords({ lat, lng });
+        
+        // Calculate distance to outlet
+        const dist = calculateDistance(lat, lng, Number(outlet.latitude), Number(outlet.longitude));
+        setGpsDistance(dist);
+        setIsGPSMode(true);
+        toast.success(`Lokasi terdeteksi! Jarak: ${dist} KM`);
+      },
+      (err) => {
+        toast.error("Gagal mengambil lokasi: " + err.message);
+        setIsGPSMode(false);
+      }
+    );
+  };
 
   const handleOrder = async () => {
     if (!name || !phone || !village || !address) {
@@ -152,6 +192,9 @@ export function Checkout() {
         status: "pending",
         is_manual_order: false,
         is_delivery_service: true,
+        customer_latitude: customerCoords?.lat || null,
+        customer_longitude: customerCoords?.lng || null,
+        zone: finance.zone || null,
       };
 
       // Build order items array
@@ -238,12 +281,25 @@ export function Checkout() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pilih Desa <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Pilih Desa <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGetLocation}
+                      className="text-xs flex items-center gap-1 text-orange-600 hover:text-orange-700 font-medium"
+                    >
+                      <MapPin className="w-3 h-3" />
+                      <span>📍 Gunakan Lokasi Saya</span>
+                    </button>
+                  </div>
                   <select
                     value={village}
-                    onChange={(e) => setVillage(e.target.value as Village)}
+                    onChange={(e) => {
+                      setVillage(e.target.value as Village);
+                      setIsGPSMode(false); // Disable GPS mode if village is changed manually
+                    }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                   >
                     <option value="">-- Pilih Desa --</option>
@@ -270,7 +326,32 @@ export function Checkout() {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
                   />
                 </div>
-                {distance > 0 && (
+                
+                {isGPSMode ? (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-green-800 font-semibold mb-1 text-sm">
+                      <MapPin className="w-4 h-4" />
+                      Lokasi Terdeteksi (Otomatis)
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="bg-white/50 p-2 rounded border border-green-100">
+                        <div className="text-gray-500">Jarak</div>
+                        <div className="font-bold">{distance} KM</div>
+                      </div>
+                      <div className="bg-white/50 p-2 rounded border border-green-100">
+                        <div className="text-gray-500">Zona</div>
+                        <div className="font-bold">{finance.zone}</div>
+                      </div>
+                      <div className="bg-white/50 p-2 rounded border border-green-100">
+                        <div className="text-gray-500">Ongkir</div>
+                        <div className="font-bold text-orange-600">{formatCurrency(finance.deliveryFee)}</div>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-green-700 mt-2">
+                      * Tarif: Biaya Zona ({formatCurrency(finance.zoneFee || 0)}) + Jarak ({distance} km x {formatCurrency(fees.cost_per_km)})
+                    </p>
+                  </div>
+                ) : distance > 0 && (
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                     <p className="text-sm text-orange-800">
                       <MapPin className="w-4 h-4 inline mr-1" />

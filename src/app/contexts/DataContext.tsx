@@ -330,7 +330,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }));
 
     const { data: orderId, error } = await supabase.rpc('create_order', {
-      p_order_id: order.id!,
       p_customer_name: order.customer_name!,
       p_customer_phone: order.customer_phone!,
       p_customer_village: order.customer_village!,
@@ -353,6 +352,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       p_is_manual_order: order.is_manual_order || false,
       p_is_delivery_service: order.is_delivery_service || false,
       p_items: rpcItems,
+      p_customer_latitude: order.customer_latitude || null,
+      p_customer_longitude: order.customer_longitude || null,
+      p_zone: order.zone || null,
     });
 
     if (error) {

@@ -1,5 +1,3 @@
-// Auto-generated Supabase types - updated from remote database
-// Run: supabase gen types typescript --project-id <ref> > src/lib/database.types.ts
 export type Json =
   | string
   | number
@@ -9,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
@@ -286,6 +286,8 @@ export type Database = {
           admin_fee: number
           charged_distance: number
           created_at: string
+          customer_latitude: number | null
+          customer_longitude: number | null
           customer_name: string
           customer_phone: string
           customer_village: string
@@ -303,6 +305,7 @@ export type Database = {
           payment_method: string
           payment_proof_url: string | null
           payment_provider: string | null
+          payment_rejection_reason: string | null
           payment_status: string | null
           service_fee: number
           status: string
@@ -310,12 +313,15 @@ export type Database = {
           total: number
           unique_payment_code: number | null
           updated_at: string
+          zone: string | null
         }
         Insert: {
           address: string
           admin_fee?: number
           charged_distance: number
           created_at?: string
+          customer_latitude?: number | null
+          customer_longitude?: number | null
           customer_name: string
           customer_phone: string
           customer_village: string
@@ -333,6 +339,7 @@ export type Database = {
           payment_method: string
           payment_proof_url?: string | null
           payment_provider?: string | null
+          payment_rejection_reason?: string | null
           payment_status?: string | null
           service_fee: number
           status?: string
@@ -340,12 +347,15 @@ export type Database = {
           total: number
           unique_payment_code?: number | null
           updated_at?: string
+          zone?: string | null
         }
         Update: {
           address?: string
           admin_fee?: number
           charged_distance?: number
           created_at?: string
+          customer_latitude?: number | null
+          customer_longitude?: number | null
           customer_name?: string
           customer_phone?: string
           customer_village?: string
@@ -363,6 +373,7 @@ export type Database = {
           payment_method?: string
           payment_proof_url?: string | null
           payment_provider?: string | null
+          payment_rejection_reason?: string | null
           payment_status?: string | null
           service_fee?: number
           status?: string
@@ -370,6 +381,7 @@ export type Database = {
           total?: number
           unique_payment_code?: number | null
           updated_at?: string
+          zone?: string | null
         }
         Relationships: [
           {
@@ -396,6 +408,8 @@ export type Database = {
           image_url: string | null
           is_active: boolean
           is_open: boolean
+          latitude: number | null
+          longitude: number | null
           markup_enabled: boolean | null
           name: string
           updated_at: string
@@ -408,6 +422,8 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           is_open?: boolean
+          latitude?: number | null
+          longitude?: number | null
           markup_enabled?: boolean | null
           name: string
           updated_at?: string
@@ -420,6 +436,8 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           is_open?: boolean
+          latitude?: number | null
+          longitude?: number | null
           markup_enabled?: boolean | null
           name?: string
           updated_at?: string
@@ -532,6 +550,7 @@ export type Database = {
           is_available: boolean
           is_best_seller: boolean | null
           is_recommended: boolean | null
+          markup_enabled: boolean | null
           name: string
           outlet_id: string
           price: number
@@ -547,6 +566,7 @@ export type Database = {
           is_available?: boolean
           is_best_seller?: boolean | null
           is_recommended?: boolean | null
+          markup_enabled?: boolean | null
           name: string
           outlet_id: string
           price: number
@@ -562,6 +582,7 @@ export type Database = {
           is_available?: boolean
           is_best_seller?: boolean | null
           is_recommended?: boolean | null
+          markup_enabled?: boolean | null
           name?: string
           outlet_id?: string
           price?: number
@@ -581,6 +602,7 @@ export type Database = {
         Row: {
           balance: number
           created_at: string
+          dana_number: string | null
           email: string | null
           id: string
           is_active: boolean
@@ -595,6 +617,7 @@ export type Database = {
         Insert: {
           balance?: number
           created_at?: string
+          dana_number?: string | null
           email?: string | null
           id: string
           is_active?: boolean
@@ -609,6 +632,7 @@ export type Database = {
         Update: {
           balance?: number
           created_at?: string
+          dana_number?: string | null
           email?: string | null
           id?: string
           is_active?: boolean
@@ -635,34 +659,65 @@ export type Database = {
         Args: { p_driver_id: string; p_order_id: string }
         Returns: undefined
       }
-      create_order: {
-        Args: {
-          p_address: string
-          p_admin_fee: number
-          p_charged_distance: number
-          p_customer_name: string
-          p_customer_phone: string
-          p_customer_village: string
-          p_delivery_fee: number
-          p_distance: number
-          p_final_payment_amount: number
-          p_is_delivery_service: boolean
-          p_is_manual_order: boolean
-          p_items: Json
-          p_order_id: string
-          p_outlet_id: string
-          p_outlet_name: string
-          p_payment_method: string
-          p_payment_provider: string
-          p_payment_status: string
-          p_service_fee: number
-          p_status: string
-          p_subtotal: number
-          p_total: number
-          p_unique_payment_code: number
-        }
-        Returns: string
-      }
+      create_order:
+        | {
+            Args: {
+              p_address: string
+              p_admin_fee: number
+              p_charged_distance: number
+              p_customer_latitude?: number
+              p_customer_longitude?: number
+              p_customer_name: string
+              p_customer_phone: string
+              p_customer_village: string
+              p_delivery_fee: number
+              p_distance: number
+              p_final_payment_amount: number
+              p_is_delivery_service: boolean
+              p_is_manual_order: boolean
+              p_items: Json
+              p_outlet_id: string
+              p_outlet_name: string
+              p_payment_method: string
+              p_payment_provider: string
+              p_payment_status: string
+              p_service_fee: number
+              p_status: string
+              p_subtotal: number
+              p_total: number
+              p_unique_payment_code: number
+              p_zone?: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_address: string
+              p_admin_fee: number
+              p_charged_distance: number
+              p_customer_name: string
+              p_customer_phone: string
+              p_customer_village: string
+              p_delivery_fee: number
+              p_distance: number
+              p_final_payment_amount: number
+              p_is_delivery_service: boolean
+              p_is_manual_order: boolean
+              p_items: Json
+              p_order_id: string
+              p_outlet_id: string
+              p_outlet_name: string
+              p_payment_method: string
+              p_payment_provider: string
+              p_payment_status: string
+              p_service_fee: number
+              p_status: string
+              p_subtotal: number
+              p_total: number
+              p_unique_payment_code: number
+            }
+            Returns: string
+          }
       delete_driver: { Args: { p_driver_id: string }; Returns: undefined }
       delete_order: { Args: { p_order_id: string }; Returns: undefined }
       driver_reject_order: {
@@ -819,3 +874,9 @@ export type CompositeTypes<
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const

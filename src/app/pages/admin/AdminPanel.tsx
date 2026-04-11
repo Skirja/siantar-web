@@ -156,6 +156,8 @@ export function AdminPanel() {
     village: "",
     category: "Bakso & Mie Ayam" as string,
     image_url: "" as string | null,
+    latitude: "" as string | number,
+    longitude: "" as string | number,
   });
   const [outletImageFile, setOutletImageFile] = useState<File | null>(null);
   const [outletImagePreview, setOutletImagePreview] = useState<string | null>(null);
@@ -247,7 +249,7 @@ export function AdminPanel() {
 
   const handleAddOutlet = () => {
     setEditingOutlet(null);
-    setOutletForm({ name: "", village: "", category: "Bakso & Mie Ayam", image_url: null });
+    setOutletForm({ name: "", village: "", category: "Bakso & Mie Ayam", image_url: null, latitude: "", longitude: "" });
     setOutletImageFile(null);
     setOutletImagePreview(null);
     setShowOutletModal(true);
@@ -260,6 +262,8 @@ export function AdminPanel() {
       village: outlet.village,
       category: outlet.category,
       image_url: outlet.image_url,
+      latitude: outlet.latitude || "",
+      longitude: outlet.longitude || "",
     });
     setOutletImageFile(null);
     setOutletImagePreview(outlet.image_url);
@@ -288,7 +292,12 @@ export function AdminPanel() {
         const path = `outlet-${Date.now()}-${outletImageFile.name}`;
         imageUrl = await uploadFile("outlet-images", path, outletImageFile);
       }
-      const data = { ...outletForm, image_url: imageUrl };
+      const data = { 
+        ...outletForm, 
+        image_url: imageUrl,
+        latitude: outletForm.latitude !== "" ? Number(outletForm.latitude) : null,
+        longitude: outletForm.longitude !== "" ? Number(outletForm.longitude) : null,
+      };
       if (editingOutlet) {
         await updateOutletData(editingOutlet.id, data);
         toast.success("Outlet berhasil diupdate");
@@ -684,6 +693,20 @@ export function AdminPanel() {
                             <div className="flex items-center gap-2 text-gray-600">
                               <MapPin className="w-4 h-4" />
                               <span>{order.customer_village}</span>
+                              {order.customer_latitude && order.customer_longitude && (
+                                <a
+                                  href={`https://www.google.com/maps/dir/?api=1&origin=${
+                                    outlets.find(o => o.id === order.outlet_id)?.latitude || ""
+                                  },${
+                                    outlets.find(o => o.id === order.outlet_id)?.longitude || ""
+                                  }&destination=${order.customer_latitude},${order.customer_longitude}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ml-auto text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full hover:bg-orange-200 font-semibold"
+                                >
+                                  Peta
+                                </a>
+                              )}
                             </div>
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mt-2">
                               <div className="text-gray-700"><span className="font-medium">Jarak:</span> {order.distance} km → Dikenakan: {order.charged_distance} km</div>
@@ -1085,6 +1108,58 @@ export function AdminPanel() {
                     <option value="Catering / Nasi Box">Catering / Nasi Box</option>
                   </optgroup>
                 </select>
+              </div>
+
+              {/* Koordinat Outlet */}
+              <div className="pt-2">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-sm font-medium text-gray-700">Lokasi Koordinat (GPS)</label>
+                  <button
+                   onClick={() => {
+                     if (navigator.geolocation) {
+                       toast.info("Mengambil lokasi...");
+                       navigator.geolocation.getCurrentPosition(
+                         (pos) => {
+                           setOutletForm({
+                             ...outletForm,
+                             latitude: pos.coords.latitude,
+                             longitude: pos.coords.longitude
+                           });
+                           toast.success("Lokasi berhasil diambil!");
+                         },
+                         (err) => toast.error("Gagal ambil lokasi: " + err.message)
+                       );
+                     }
+                   }}
+                   className="text-xs flex items-center gap-1 text-orange-600 hover:text-orange-700 font-medium"
+                  >
+                    <MapPin className="w-3 h-3" />
+                    <span>Ambil Lokasi Saya</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <input
+                      type="text"
+                      value={outletForm.latitude}
+                      onChange={(e) => setOutletForm({ ...outletForm, latitude: e.target.value })}
+                      placeholder="Latitude"
+                      className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={outletForm.longitude}
+                      onChange={(e) => setOutletForm({ ...outletForm, longitude: e.target.value })}
+                      placeholder="Longitude"
+                      className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1 italic">
+                  * Buka Google Maps, tahan pada titik lokasi, lalu copy-paste koordinat jika manual.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Gambar Outlet</label>

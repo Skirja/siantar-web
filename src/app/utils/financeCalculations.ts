@@ -39,6 +39,24 @@ export interface OrderFinance {
   amountToStore: number;
   setoranToAdmin: number;
   adminProfit: number;
+  zone?: "Hijau" | "Kuning" | "Merah" | "Manual";
+  zoneFee?: number;
+}
+
+/**
+ * Calculates straight-line distance between two coordinates in KM using Haversine formula.
+ */
+export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth radius in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  const distance = R * c;
+  return Math.round(distance * 10) / 10; // 1 decimal place
 }
 
 export function calculateOrderFinance(
@@ -46,12 +64,37 @@ export function calculateOrderFinance(
   distance: number,
   markupAmount: number = 0, // Explicitly passed markup total
   fees: FeeSettings = getDefaultFeeSettings(),
-  directDeliveryFee?: number
+  directDeliveryFee?: number,
+  isGPSMode: boolean = false
 ): OrderFinance {
+  let deliveryFee = 0;
+  let zone: "Hijau" | "Kuning" | "Merah" | "Manual" | undefined = undefined;
+  let zoneFee = 0;
+
+  if (isGPSMode) {
+    // Logic Ongkir Zona (Fitur #52)
+    // Ongkir = Biaya Zona + (Jarak × Rp2.000)
+    if (distance <= 5) {
+      zone = "Hijau";
+      zoneFee = 5000;
+    } else if (distance <= 10) {
+      zone = "Kuning";
+      zoneFee = 10000;
+    } else {
+      zone = "Merah";
+      zoneFee = 15000;
+    }
+    deliveryFee = zoneFee + (distance * fees.cost_per_km);
+  } else {
+    // Fallback to village matrix logic
+    const chargedDistance = Math.max(distance, fees.min_distance_km);
+    deliveryFee = (directDeliveryFee !== undefined && directDeliveryFee > 0) ? directDeliveryFee : chargedDistance * fees.cost_per_km;
+    zone = "Manual";
+  }
+
   const chargedDistance = Math.max(distance, fees.min_distance_km);
-  const isMinimumChargeApplied = distance < fees.min_distance_km;
-  // Use distance matrix fee if provided and > 0, otherwise fallback to KM * 2000
-  const deliveryFee = (directDeliveryFee !== undefined && directDeliveryFee > 0) ? directDeliveryFee : chargedDistance * fees.cost_per_km;
+  const isMinimumChargeApplied = !isGPSMode && distance < fees.min_distance_km;
+  
   const driverSharePct = fees.driver_share_pct / 100;
   const adminSharePct = fees.admin_share_pct / 100;
   
@@ -83,6 +126,8 @@ export function calculateOrderFinance(
     amountToStore,
     setoranToAdmin,
     adminProfit,
+    zone,
+    zoneFee,
   };
 }
 
