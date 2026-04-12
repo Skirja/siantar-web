@@ -68,6 +68,7 @@ interface DataContextType {
   addOutlet: (outlet: TablesInsert<"outlets">) => Promise<void>;
   updateOutlet: (id: string, outlet: Partial<TablesInsert<"outlets">>) => Promise<void>;
   deleteOutlet: (id: string) => Promise<void>;
+  restoreOutlet: (id: string) => Promise<void>;
   toggleOutletOpen: (id: string) => Promise<void>;
   loadingOutlets: boolean;
 
@@ -293,7 +294,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [refreshOutlets]);
 
   const deleteOutlet = useCallback(async (id: string) => {
-    const { error } = await supabase.from("outlets").delete().eq("id", id);
+    const { error } = await supabase.from("outlets").update({ is_active: false }).eq("id", id);
+    if (error) throw error;
+    await refreshOutlets();
+  }, [refreshOutlets]);
+
+  const restoreOutlet = useCallback(async (id: string) => {
+    const { error } = await supabase.from("outlets").update({ is_active: true }).eq("id", id);
     if (error) throw error;
     await refreshOutlets();
   }, [refreshOutlets]);
@@ -690,18 +697,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-    </DataContext.Provider>
-  );
-}
-
-export function useData() {
-  const context = useContext(DataContext);
-  if (!context) {
-    throw new Error("useData must be used within DataProvider");
-  }
-  return context;
-}
- {children}
     </DataContext.Provider>
   );
 }
