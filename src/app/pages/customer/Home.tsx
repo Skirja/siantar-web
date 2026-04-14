@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
-import { Search, ShoppingBag, Package, Coffee, MapPin, Truck, X, Store, ImageIcon, Loader2, Star, Clock } from "lucide-react";
+import { Search, ShoppingBag, Package, Coffee, MapPin, Truck, X, Store, ImageIcon, Loader2, Star, Clock, DoorOpen, DoorClosed } from "lucide-react";
 import { useData } from "../../contexts/DataContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { motion, AnimatePresence } from "motion/react";
 import { BannerCarousel } from "../../components/BannerCarousel";
 import { supabase } from "../../../lib/supabase";
 import type { Tables } from "../../../lib/database.types";
+import { isOutletCurrentlyOpen, getNextOpenTime } from "../../utils/scheduleUtils";
 
 type Banner = Tables<"banners">;
 
@@ -40,7 +41,7 @@ export function Home() {
   }, []);
 
   const allCategories = outlets
-    .filter(o => o.is_active !== false && o.is_open !== false) // Only show active and open outlets for category list
+    .filter(o => o.is_active !== false) // Show all active outlets in category list
     .map((o) => o.category)
     .filter((v, i, a) => a.indexOf(v) === i);
   const [showAllCategories, setShowAllCategories] = useState(false);
@@ -70,14 +71,13 @@ export function Home() {
 
   // Filter outlets based on category and search
   const filteredOutlets = outlets.filter((outlet) => {
-    const isOpen = outlet.is_open !== false; // Default true if null/undefined
     const matchesCategory =
       selectedCategory === null || outlet.category === selectedCategory;
     const matchesSearch =
       outlet.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       outlet.village.toLowerCase().includes(searchQuery.toLowerCase()) ||
       outlet.category.toLowerCase().includes(searchQuery.toLowerCase());
-    return isOpen && matchesCategory && matchesSearch;
+    return matchesCategory && matchesSearch;
   });
 
   const recommendedProducts = products.filter((p) => p.is_recommended && p.is_available);
@@ -285,7 +285,7 @@ export function Home() {
           <p className="text-sm text-gray-600 mt-1">
             {outlets.length === 0
               ? "Belum ada outlet yang terdaftar"
-              : `${filteredOutlets.length} outlet tersedia${outlets.filter(o => !o.is_open).length > 0 ? ` (${outlets.filter(o => !o.is_open).length} tutup)` : ""}`}
+              : `${filteredOutlets.length} outlet terdaftar`}
           </p>
         </div>
 
@@ -328,79 +328,96 @@ export function Home() {
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredOutlets.map((outlet, index) => (
-              <motion.div
-                key={outlet.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <Link
-                  to={`/home/store/${outlet.id}`}
-                  className="block bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group border border-gray-100 hover:border-orange-200"
+            {filteredOutlets.map((outlet, index) => {
+              const isOpen = isOutletCurrentlyOpen(outlet);
+              return (
+                <motion.div
+                  key={outlet.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
                 >
-                  <div className="aspect-video overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 relative">
-                    {outlet.image_url ? (
-                      <img
-                        src={outlet.image_url}
-                        alt={outlet.name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      />
-                    ) : null}
-                    <div 
-                      className={`absolute inset-0 flex flex-col items-center justify-center ${outlet.image_url ? 'hidden' : 'flex'}`}
-                    >
-                      <div className="bg-white/80 backdrop-blur-sm rounded-full p-6 mb-3">
-                        <ImageIcon className="w-10 h-10 text-gray-400" />
+                  <Link
+                    to={`/home/store/${outlet.id}`}
+                    className={`block bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group border border-gray-100 hover:border-orange-200 ${!isOpen ? 'grayscale-[0.5]' : ''}`}
+                  >
+                    <div className="aspect-video overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 relative">
+                      {outlet.image_url ? (
+                        <img
+                          src={outlet.image_url}
+                          alt={outlet.name}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        />
+                      ) : null}
+                      
+                      {/* Status Badge */}
+                      <div className="absolute top-3 left-3">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold shadow-sm ${isOpen ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                          {isOpen ? <DoorOpen className="w-3 h-3" /> : <DoorClosed className="w-3 h-3" />}
+                          {isOpen ? 'BUKA' : 'TUTUP'}
+                        </span>
                       </div>
-                      <p className="text-sm font-medium text-gray-500 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full">
-                        Belum ada gambar
-                      </p>
-                    </div>
-                    <div className="absolute top-3 right-3">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-sm text-orange-600 rounded-full text-sm font-medium shadow-sm">
-                        {outlet.category}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="p-5">
-                    <h3 className="font-bold text-gray-900 mb-2 text-lg group-hover:text-orange-600 transition-colors">
-                      {outlet.name}
-                    </h3>
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <MapPin className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                        <span className="text-sm">{outlet.village}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Package className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                        <span className="text-sm">{getProductsByOutlet(outlet.id).length} menu tersedia</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                          <span>4.5</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          <span>15-25 min</span>
+
+                      <div 
+                        className={`absolute inset-0 flex flex-col items-center justify-center ${outlet.image_url ? 'hidden' : 'flex'}`}
+                      >
+                        <div className="bg-white/80 backdrop-blur-sm rounded-full p-6 mb-3">
+                          <ImageIcon className="w-10 h-10 text-gray-400" />
                         </div>
                       </div>
+                      <div className="absolute top-3 right-3">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-sm text-orange-600 rounded-full text-sm font-medium shadow-sm">
+                          {outlet.category}
+                        </span>
+                      </div>
+                      
+                      {!isOpen && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <div className="bg-white px-4 py-2 rounded-lg shadow-lg text-center">
+                            <p className="text-xs font-bold text-gray-900">{getNextOpenTime(outlet)}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="pt-4 border-t border-gray-100">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-500">Lihat Menu</span>
-                        <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white group-hover:bg-orange-600 transition-colors">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
+                    <div className="p-5">
+                      <h3 className="font-bold text-gray-900 mb-2 text-lg group-hover:text-orange-600 transition-colors">
+                        {outlet.name}
+                      </h3>
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <MapPin className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                          <span className="text-sm">{outlet.village}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Package className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                          <span className="text-sm">{getProductsByOutlet(outlet.id).length} menu tersedia</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-sm text-gray-500">
+                          <div className="flex items-center gap-1">
+                            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                            <span>4.5</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            <span>15-25 min</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="pt-4 border-t border-gray-100">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-500">{isOpen ? 'Lihat Menu' : 'Lihat Jadwal'}</span>
+                          <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white group-hover:bg-orange-600 transition-colors">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
+                  </Link>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>

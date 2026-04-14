@@ -13,6 +13,7 @@ import {
   calculateDistance,
 } from "../../utils/financeCalculations";
 import type { TablesInsert } from "../../../lib/database.types";
+import { isOutletCurrentlyOpen } from "../../utils/scheduleUtils";
 
 export function Checkout() {
   const { items, subtotal: cartSubtotal, clearCart } = useCart();
@@ -118,6 +119,13 @@ export function Checkout() {
 
     if (outlet.is_active === false) {
       toast.error("Mohon maaf, outlet ini sedang tidak aktif/dihapus.");
+      return;
+    }
+
+    // Re-validate outlet status right before creating order
+    if (!isOutletCurrentlyOpen(outlet)) {
+      toast.error("Mohon maaf, outlet baru saja tutup. Pesanan tidak dapat dilanjutkan.");
+      navigate(`/home/store/${outlet.id}`);
       return;
     }
 

@@ -9,7 +9,25 @@ import { toast } from "sonner";
 export function OutletMenuManagement() {
   const { outletId } = useParams<{ outletId: string }>();
   const navigate = useNavigate();
-  const { outlets, addProduct, updateProduct, deleteProduct, getProductsByOutlet, loadingProducts } = useData();
+  const { 
+    outlets, 
+    addProduct, 
+    updateProduct, 
+    deleteProduct, 
+    getProductsByOutlet, 
+    loadingProducts,
+    appSettings 
+  } = useData();
+
+  const menuCategories = appSettings.menu_categories || [
+    "Bakso & Mie Ayam", "Nasi Goreng & Mie Goreng", "Ayam Bakar & Ayam Goreng",
+    "Bebek & Ikan", "Seafood", "Soto & Sop", "Pecel Lele / Lalapan",
+    "Rice Bowl & Nasi Kotak", "Sate & Grill", "Martabak & Terang Bulan",
+    "Snack & Camilan", "Gorengan", "Cilok, Bakso Bakar & Jajanan",
+    "Kue & Dessert", "Roti & Bakery", "Minuman Dingin", "Kopi & Teh",
+    "Jus & Minuman Buah", "Es Campur / Es Tradisional", "Frozen Food",
+    "Catering / Nasi Box"
+  ];
 
   const outlet = outlets.find((o) => o.id === outletId);
   const outletProducts = outletId ? getProductsByOutlet(outletId) : [];
@@ -26,7 +44,7 @@ export function OutletMenuManagement() {
     price: 0,
     discount_price: 0,
     description: "",
-    category: "Bakso & Mie Ayam" as string,
+    category: menuCategories[0],
     variants: [] as ProductVariant[],
     extras: [] as ProductExtra[],
     image_url: "" as string | null,
@@ -65,7 +83,7 @@ export function OutletMenuManagement() {
       price: 0,
       discount_price: 0,
       description: "",
-      category: "Bakso & Mie Ayam",
+      category: menuCategories[0],
       variants: [],
       extras: [],
       image_url: null,
@@ -557,35 +575,9 @@ export function OutletMenuManagement() {
                   onChange={(e) => setMenuForm({ ...menuForm, category: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                 >
-                  <optgroup label="Makanan Utama">
-                    <option value="Bakso & Mie Ayam">Bakso & Mie Ayam</option>
-                    <option value="Nasi Goreng & Mie Goreng">Nasi Goreng & Mie Goreng</option>
-                    <option value="Ayam Bakar & Ayam Goreng">Ayam Bakar & Ayam Goreng</option>
-                    <option value="Bebek & Ikan">Bebek & Ikan</option>
-                    <option value="Seafood">Seafood</option>
-                    <option value="Soto & Sop">Soto & Sop</option>
-                    <option value="Pecel Lele / Lalapan">Pecel Lele / Lalapan</option>
-                    <option value="Rice Bowl & Nasi Kotak">Rice Bowl & Nasi Kotak</option>
-                    <option value="Sate & Grill">Sate & Grill</option>
-                    <option value="Martabak & Terang Bulan">Martabak & Terang Bulan</option>
-                  </optgroup>
-                  <optgroup label="Snack & Jajanan">
-                    <option value="Snack & Camilan">Snack & Camilan</option>
-                    <option value="Gorengan">Gorengan</option>
-                    <option value="Cilok, Bakso Bakar & Jajanan">Cilok, Bakso Bakar & Jajanan</option>
-                    <option value="Kue & Dessert">Kue & Dessert</option>
-                    <option value="Roti & Bakery">Roti & Bakery</option>
-                  </optgroup>
-                  <optgroup label="Minuman">
-                    <option value="Minuman Dingin">Minuman Dingin</option>
-                    <option value="Kopi & Teh">Kopi & Teh</option>
-                    <option value="Jus & Minuman Buah">Jus & Minuman Buah</option>
-                    <option value="Es Campur / Es Tradisional">Es Campur / Es Tradisional</option>
-                  </optgroup>
-                  <optgroup label="Lainnya">
-                    <option value="Frozen Food">Frozen Food</option>
-                    <option value="Catering / Nasi Box">Catering / Nasi Box</option>
-                  </optgroup>
+                  {menuCategories.map((cat: string) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
                 </select>
               </div>
 
@@ -621,49 +613,6 @@ export function OutletMenuManagement() {
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                       menuForm.is_available ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Best Seller Toggle */}
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Star className="w-4 h-4 text-yellow-500" />
-                  <div>
-                    <label className="text-sm font-medium text-gray-900">Best Seller</label>
-                    <p className="text-xs text-gray-600 mt-1">Tandai sebagai menu terlaris</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setMenuForm({ ...menuForm, is_best_seller: !menuForm.is_best_seller })}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    menuForm.is_best_seller ? "bg-yellow-500" : "bg-gray-300"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      menuForm.is_best_seller ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Recommended Toggle */}
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <label className="text-sm font-medium text-gray-900">Rekomendasi</label>
-                  <p className="text-xs text-gray-600 mt-1">Tampilkan di slider rekomendasi</p>
-                </div>
-                <button
-                  onClick={() => setMenuForm({ ...menuForm, is_recommended: !menuForm.is_recommended })}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    menuForm.is_recommended ? "bg-orange-500" : "bg-gray-300"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      menuForm.is_recommended ? "translate-x-6" : "translate-x-1"
                     }`}
                   />
                 </button>

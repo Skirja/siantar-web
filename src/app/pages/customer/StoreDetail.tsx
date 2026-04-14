@@ -1,11 +1,12 @@
 import { useParams, Link } from "react-router";
-import { ArrowLeft, MapPin, Plus, ShoppingCart, ImageIcon, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin, Plus, ShoppingCart, ImageIcon, Loader2, DoorClosed, AlertCircle } from "lucide-react";
 import { useCart } from "../../contexts/CartContext";
 import { useData } from "../../contexts/DataContext";
-import { useState } from "react";
-import { motion } from "motion/react";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import type { ProductVariant, ProductExtra, ProductWithDetails } from "../../contexts/DataContext";
+import { isOutletCurrentlyOpen, getNextOpenTime } from "../../utils/scheduleUtils";
 
 export function StoreDetail() {
   const { storeId } = useParams<{ storeId: string }>();
@@ -16,6 +17,17 @@ export function StoreDetail() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   const outlet = outlets.find((o) => o.id === storeId);
+  const isOpen = outlet ? isOutletCurrentlyOpen(outlet) : false;
+
+  useEffect(() => {
+    if (outlet && !isOpen) {
+      toast.error(`Outlet sedang tutup. ${getNextOpenTime(outlet)}`, {
+        duration: 5000,
+        icon: <DoorClosed className="w-5 h-5" />,
+      });
+    }
+  }, [outlet, isOpen]);
+
   const outletProducts = storeId ? getProductsByOutlet(storeId) : [];
 
   // Get unique categories from products
@@ -118,6 +130,12 @@ export function StoreDetail() {
     <div className="pb-24 md:pb-8">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-16 z-40">
+        {!isOpen && (
+          <div className="bg-red-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-bold animate-pulse">
+            <DoorClosed className="w-4 h-4" />
+            <span>OUTLET SEDANG TUTUP • {getNextOpenTime(outlet)}</span>
+          </div>
+        )}
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <Link
             to="/home"
@@ -126,12 +144,20 @@ export function StoreDetail() {
             <ArrowLeft className="w-5 h-5" />
             <span>Kembali</span>
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{outlet.name}</h1>
-            <div className="flex items-center gap-2 mt-2 text-gray-600">
-              <MapPin className="w-4 h-4" />
-              <span className="text-sm">{outlet.village}</span>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{outlet.name}</h1>
+              <div className="flex items-center gap-2 mt-2 text-gray-600">
+                <MapPin className="w-4 h-4" />
+                <span className="text-sm">{outlet.village}</span>
+              </div>
             </div>
+            {!isOpen && (
+              <div className="bg-red-50 text-red-600 px-3 py-1 rounded-full border border-red-100 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4" />
+                <span className="text-xs font-bold uppercase">Tutup</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -303,20 +329,23 @@ export function StoreDetail() {
                 <div className="flex flex-col items-center gap-1 flex-shrink-0">
                   <button
                     onClick={() => handleAddToCart(product)}
-                    disabled={!product.is_available}
+                    disabled={!product.is_available || !isOpen}
                     className="flex items-center justify-center w-10 h-10 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed relative"
                   >
-                    <Plus className="w-5 h-5" />
-                    {getProductCartQuantity(product) > 0 && (
+                    {!isOpen ? <DoorClosed className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                    {isOpen && getProductCartQuantity(product) > 0 && (
                       <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
                         {getProductCartQuantity(product)}
                       </span>
                     )}
                   </button>
-                  {getProductCartQuantity(product) > 0 && (
+                  {isOpen && getProductCartQuantity(product) > 0 && (
                     <span className="text-xs text-orange-600 font-medium">
                       {getProductCartQuantity(product)}x
                     </span>
+                  )}
+                  {!isOpen && (
+                    <span className="text-[10px] text-red-500 font-bold uppercase mt-1">Tutup</span>
                   )}
                 </div>
               </div>

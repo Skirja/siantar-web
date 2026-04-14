@@ -30,6 +30,7 @@ import {
   DoorClosed,
   AlertCircle,
   Calendar,
+  Grid,
 } from "lucide-react";
 import { useData, Order, Outlet, Profile } from "../../contexts/DataContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -156,14 +157,43 @@ export function AdminPanel() {
   const [outletForm, setOutletForm] = useState({
     name: "",
     village: "",
-    category: "Bakso & Mie Ayam" as string,
-    image_url: "" as string | null,
+    category: "Bakso & Mie Ayam",
+    image_url: null as string | null,
     latitude: "" as string | number,
     longitude: "" as string | number,
+    is_manual_schedule: false,
+    operating_hours: {
+      monday: { isOpen: true, open: "09:00", close: "21:00" },
+      tuesday: { isOpen: true, open: "09:00", close: "21:00" },
+      wednesday: { isOpen: true, open: "09:00", close: "21:00" },
+      thursday: { isOpen: true, open: "09:00", close: "21:00" },
+      friday: { isOpen: true, open: "09:00", close: "21:00" },
+      saturday: { isOpen: true, open: "10:00", close: "22:00" },
+      sunday: { isOpen: true, open: "10:00", close: "22:00" },
+    } as any,
   });
   const [outletImageFile, setOutletImageFile] = useState<File | null>(null);
   const [outletImagePreview, setOutletImagePreview] = useState<string | null>(null);
   const [savingOutlet, setSavingOutlet] = useState(false);
+  const [newCategoryInput, setNewCategoryInput] = useState("");
+
+  const handleAddMenuCategory = () => {
+    if (!newCategoryInput.trim()) return;
+    const current = appSettings.menu_categories || [];
+    if (current.includes(newCategoryInput.trim())) {
+      toast.error("Kategori sudah ada");
+      return;
+    }
+    updateAppSetting("menu_categories", [...current, newCategoryInput.trim()]);
+    setNewCategoryInput("");
+    toast.success("Kategori ditambahkan");
+  };
+
+  const handleRemoveMenuCategory = (cat: string) => {
+    const current = appSettings.menu_categories || [];
+    updateAppSetting("menu_categories", current.filter((c: string) => c !== cat));
+    toast.success("Kategori dihapus");
+  };
 
   // Driver assignment
   const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null);
@@ -252,7 +282,24 @@ export function AdminPanel() {
 
   const handleAddOutlet = () => {
     setEditingOutlet(null);
-    setOutletForm({ name: "", village: "", category: "Bakso & Mie Ayam", image_url: null, latitude: "", longitude: "" });
+    setOutletForm({
+      name: "",
+      village: "",
+      category: "Bakso & Mie Ayam",
+      image_url: null,
+      latitude: "",
+      longitude: "",
+      is_manual_schedule: false,
+      operating_hours: {
+        monday: { isOpen: true, open: "09:00", close: "21:00" },
+        tuesday: { isOpen: true, open: "09:00", close: "21:00" },
+        wednesday: { isOpen: true, open: "09:00", close: "21:00" },
+        thursday: { isOpen: true, open: "09:00", close: "21:00" },
+        friday: { isOpen: true, open: "09:00", close: "21:00" },
+        saturday: { isOpen: true, open: "10:00", close: "22:00" },
+        sunday: { isOpen: true, open: "10:00", close: "22:00" },
+      },
+    });
     setOutletImageFile(null);
     setOutletImagePreview(null);
     setShowOutletModal(true);
@@ -267,6 +314,16 @@ export function AdminPanel() {
       image_url: outlet.image_url,
       latitude: outlet.latitude || "",
       longitude: outlet.longitude || "",
+      is_manual_schedule: (outlet as any).is_manual_schedule ?? false,
+      operating_hours: (outlet as any).operating_hours ?? {
+        monday: { isOpen: true, open: "09:00", close: "21:00" },
+        tuesday: { isOpen: true, open: "09:00", close: "21:00" },
+        wednesday: { isOpen: true, open: "09:00", close: "21:00" },
+        thursday: { isOpen: true, open: "09:00", close: "21:00" },
+        friday: { isOpen: true, open: "09:00", close: "21:00" },
+        saturday: { isOpen: true, open: "10:00", close: "22:00" },
+        sunday: { isOpen: true, open: "10:00", close: "22:00" },
+      },
     });
     setOutletImageFile(null);
     setOutletImagePreview(outlet.image_url);
@@ -1146,6 +1203,43 @@ export function AdminPanel() {
                     ))}
                   </div>
                 </div>
+
+                {/* Menu Categories Management */}
+                <div className="pt-8 border-t border-gray-100">
+                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Grid className="w-5 h-5 text-orange-500" />
+                    Manajemen Kategori Menu
+                  </h3>
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="text"
+                      value={newCategoryInput}
+                      onChange={(e) => setNewCategoryInput(e.target.value)}
+                      placeholder="Nama kategori baru..."
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                    <button
+                      onClick={handleAddMenuCategory}
+                      className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
+                    >
+                      <Plus className="w-5 h-5" />
+                      <span>Tambah</span>
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(appSettings.menu_categories || []).map((cat: string) => (
+                      <div key={cat} className="group flex items-center gap-2 px-3 py-1.5 bg-orange-50 text-orange-700 rounded-full border border-orange-100 transition-all hover:bg-orange-100">
+                        <span className="text-sm font-medium">{cat}</span>
+                        <button
+                          onClick={() => handleRemoveMenuCategory(cat)}
+                          className="p-0.5 hover:text-red-500 transition-colors opacity-60 hover:opacity-100"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1384,6 +1478,71 @@ export function AdminPanel() {
                   * Buka Google Maps, tahan pada titik lokasi, lalu copy-paste koordinat jika manual.
                 </p>
               </div>
+              {/* Jadwal Operasional */}
+              <div className="pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-gray-900">Jadwal Operasional</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Mode Manual</span>
+                    <button
+                      onClick={() => setOutletForm({ ...outletForm, is_manual_schedule: !outletForm.is_manual_schedule })}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${outletForm.is_manual_schedule ? 'bg-orange-500' : 'bg-gray-200'}`}
+                    >
+                      <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${outletForm.is_manual_schedule ? 'translate-x-5' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {outletForm.is_manual_schedule ? (
+                  <div className="bg-orange-50 p-3 rounded-lg border border-orange-100 mb-4">
+                    <p className="text-xs text-orange-800 mb-2 font-medium">Mode manual aktif. Status outlet ditentukan langsung oleh tombol Buka/Tutup di daftar outlet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 mb-4">
+                    {Object.entries(outletForm.operating_hours).map(([day, schedule]: [string, any]) => (
+                      <div key={day} className="flex items-center gap-3">
+                        <div className="w-20 text-xs font-medium text-gray-600 capitalize">{day}</div>
+                        <button
+                          onClick={() => {
+                            const newHours = { ...outletForm.operating_hours };
+                            newHours[day].isOpen = !newHours[day].isOpen;
+                            setOutletForm({ ...outletForm, operating_hours: newHours });
+                          }}
+                          className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors ${schedule.isOpen ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+                        >
+                          {schedule.isOpen ? 'Buka' : 'Libur'}
+                        </button>
+                        {schedule.isOpen && (
+                          <div className="flex items-center gap-2 flex-1">
+                            <input
+                              type="time"
+                              value={schedule.open}
+                              onChange={(e) => {
+                                const newHours = { ...outletForm.operating_hours };
+                                newHours[day].open = e.target.value;
+                                setOutletForm({ ...outletForm, operating_hours: newHours });
+                              }}
+                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 outline-none"
+                            />
+                            <span className="text-gray-400">-</span>
+                            <input
+                              type="time"
+                              value={schedule.close}
+                              onChange={(e) => {
+                                const newHours = { ...outletForm.operating_hours };
+                                newHours[day].close = e.target.value;
+                                setOutletForm({ ...outletForm, operating_hours: newHours });
+                              }}
+                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 outline-none"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Gambar Outlet</label>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-orange-500 transition-colors">

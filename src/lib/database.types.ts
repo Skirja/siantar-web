@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.4"
+  }
   public: {
     Tables: {
       app_settings: {
@@ -218,7 +223,7 @@ export type Database = {
           order_id: string
           price: number
           product_id?: string | null
-          quantity: number
+          quantity?: number
           selected_extras?: string[] | null
           selected_variant?: string | null
         }
@@ -478,11 +483,13 @@ export type Database = {
           id: string
           image_url: string | null
           is_active: boolean
+          is_manual_schedule: boolean | null
           is_open: boolean
           latitude: number | null
           longitude: number | null
           markup_enabled: boolean | null
           name: string
+          operating_hours: Json | null
           updated_at: string
           village: string
         }
@@ -492,11 +499,13 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_manual_schedule?: boolean | null
           is_open?: boolean
           latitude?: number | null
           longitude?: number | null
           markup_enabled?: boolean | null
           name: string
+          operating_hours?: Json | null
           updated_at?: string
           village: string
         }
@@ -506,11 +515,13 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_manual_schedule?: boolean | null
           is_open?: boolean
           latitude?: number | null
           longitude?: number | null
           markup_enabled?: boolean | null
           name?: string
+          operating_hours?: Json | null
           updated_at?: string
           village?: string
         }
@@ -732,106 +743,97 @@ export type Database = {
     }
     Functions: {
       assign_driver_to_order: {
-        Args: {
-          p_driver_id: string
-          p_driver_name: string
-          p_order_id: string
-        }
+        Args: { p_driver_id: string; p_driver_name: string; p_order_id: string }
         Returns: string
       }
       complete_order_with_deduction: {
-        Args: {
-          p_driver_id: string
-          p_order_id: string
-        }
+        Args: { p_driver_id: string; p_order_id: string }
         Returns: undefined
       }
-      create_order: {
-        Args: {
-          p_customer_name: string
-          p_customer_phone: string
-          p_customer_village: string
-          p_address: string
-          p_outlet_id: string
-          p_outlet_name: string
-          p_subtotal: number
-          p_distance: number
-          p_charged_distance: number
-          p_delivery_fee: number
-          p_service_fee: number
-          p_admin_fee: number
-          p_total: number
-          p_payment_method: string
-          p_payment_provider: string | null
-          p_unique_payment_code: number | null
-          p_final_payment_amount: number | null
-          p_payment_status: string
-          p_status: string
-          p_is_manual_order: boolean
-          p_is_delivery_service: boolean
-          p_items: Json
-          p_customer_latitude: number | null
-          p_customer_longitude: number | null
-          p_zone: string | null
-        }
-        Returns: string
-      }
-      delete_driver: {
-        Args: {
-          p_driver_id: string
-        }
-        Returns: undefined
-      }
-      delete_order: {
-        Args: {
-          p_order_id: string
-        }
-        Returns: undefined
-      }
+      create_order:
+        | {
+            Args: {
+              p_address: string
+              p_admin_fee: number
+              p_charged_distance: number
+              p_customer_latitude?: number
+              p_customer_longitude?: number
+              p_customer_name: string
+              p_customer_phone: string
+              p_customer_village: string
+              p_delivery_fee: number
+              p_distance: number
+              p_final_payment_amount: number
+              p_is_delivery_service: boolean
+              p_is_manual_order: boolean
+              p_items: Json
+              p_outlet_id: string
+              p_outlet_name: string
+              p_payment_method: string
+              p_payment_provider: string
+              p_payment_status: string
+              p_service_fee: number
+              p_status: string
+              p_subtotal: number
+              p_total: number
+              p_unique_payment_code: number
+              p_zone?: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_address: string
+              p_admin_fee: number
+              p_charged_distance: number
+              p_customer_name: string
+              p_customer_phone: string
+              p_customer_village: string
+              p_delivery_fee: number
+              p_distance: number
+              p_final_payment_amount: number
+              p_is_delivery_service: boolean
+              p_is_manual_order: boolean
+              p_items: Json
+              p_order_id: string
+              p_outlet_id: string
+              p_outlet_name: string
+              p_payment_method: string
+              p_payment_provider: string
+              p_payment_status: string
+              p_service_fee: number
+              p_status: string
+              p_subtotal: number
+              p_total: number
+              p_unique_payment_code: number
+            }
+            Returns: string
+          }
+      delete_driver: { Args: { p_driver_id: string }; Returns: undefined }
+      delete_order: { Args: { p_order_id: string }; Returns: undefined }
       driver_reject_order: {
-        Args: {
-          p_driver_id: string
-          p_order_id: string
-        }
+        Args: { p_driver_id: string; p_order_id: string }
         Returns: undefined
       }
-      reject_order: {
-        Args: {
-          p_order_id: string
-        }
-        Returns: string
-      }
-      set_user_admin: {
-        Args: {
-          user_email: string
-        }
-        Returns: undefined
-      }
-      toggle_driver_online: {
-        Args: {
-          p_driver_id: string
-        }
-        Returns: boolean
-      }
+      reject_order: { Args: { p_order_id: string }; Returns: string }
+      set_user_admin: { Args: { user_email: string }; Returns: undefined }
+      toggle_driver_online: { Args: { p_driver_id: string }; Returns: boolean }
       update_driver_balance: {
-        Args: {
-          p_amount: number
-          p_driver_id: string
-        }
+        Args: { p_amount: number; p_driver_id: string }
         Returns: undefined
       }
       update_order_payment: {
         Args: {
           p_order_id: string
-          p_payment_proof_url: string | null
-          p_payment_status: string | null
+          p_payment_proof_url?: string
+          p_payment_status?: string
         }
         Returns: undefined
       }
       update_order_status: {
         Args: {
-          p_driver_id: string | null
-          p_driver_name: string | null
+          p_driver_id?: string
+          p_driver_name?: string
           p_order_id: string
           p_status: string
         }
@@ -847,27 +849,33 @@ export type Database = {
   }
 }
 
-type PublicSchema = Database[Extract<keyof Database, "public">]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
-  PublicTableNameOrOptions extends
-    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
-        PublicSchema["Views"])
-    ? (PublicSchema["Tables"] &
-        PublicSchema["Views"])[PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -875,20 +883,24 @@ export type Tables<
     : never
 
 export type TablesInsert<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -896,20 +908,24 @@ export type TablesInsert<
     : never
 
 export type TablesUpdate<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -917,14 +933,41 @@ export type TablesUpdate<
     : never
 
 export type Enums<
-  PublicEnumNameOrOptions extends
-    | keyof PublicSchema["Enums"]
-    | { schema: keyof Database },
-  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = PublicEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
-    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
