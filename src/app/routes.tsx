@@ -16,7 +16,7 @@ import { LoginCustomer } from "./pages/auth/LoginCustomer";
 import { LoginAdmin } from "./pages/auth/LoginAdmin";
 import { LoginDriver } from "./pages/auth/LoginDriver";
 import { ServiceSelection } from "./pages/customer/ServiceSelection";
-import { KirimBarang } from "./pages/customer/KirimBarang";
+// import { KirimBarang } from "./pages/customer/KirimBarang";
 import { ServiceClosed } from "./pages/customer/ServiceClosed";
 import { DataProvider, useData } from "./contexts/DataContext";
 import { CartProvider } from "./contexts/CartContext";
@@ -79,7 +79,7 @@ export const router = createHashRouter([
               { path: "payment/:orderId", element: <PaymentInstruction /> },
               { path: "tracking/:orderId", element: <OrderTracking /> },
               { path: "history", element: <History /> },
-              { path: "kirim-barang", element: <KirimBarang /> },
+// { path: "kirim-barang", element: <KirimBarang /> },
             ],
           },
         ],
