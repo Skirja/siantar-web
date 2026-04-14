@@ -239,9 +239,9 @@ export function OrderTracking() {
                 <div className={`w-2 h-2 rounded-full ${
                   currentOrder.status === "completed" ? "bg-white" : currentOrder.status === "cancelled" ? "bg-white" : "bg-orange-600 animate-pulse"
                 }`} />
-                <span className="font-medium">
-                  {currentOrder.status === "completed" ? "Selesai" : currentOrder.status === "cancelled" ? "Dibatalkan" : "Aktif"}
-                </span>
+                  <span className="font-medium">
+                    {currentOrder.status === "completed" ? <span>Selesai</span> : currentOrder.status === "cancelled" ? <span>Dibatalkan</span> : <span>Aktif</span>}
+                  </span>
               </div>
             </div>
           </div>
@@ -444,7 +444,7 @@ export function OrderTracking() {
                           className="inline-flex items-center gap-2 mt-2 text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full"
                         >
                           <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
-                          Sedang berlangsung
+                          <span>Sedang berlangsung</span>
                         </motion.div>
                       )}
                     </div>
@@ -489,10 +489,10 @@ export function OrderTracking() {
                       }`}>
                         <Navigation className="w-3 h-3" />
                         {currentOrder.status === "going-to-store"
-                          ? "Menuju toko"
+                          ? <span>Menuju toko</span>
                           : currentOrder.status === "on-delivery"
-                          ? "Sedang mengantar"
-                          : "Siap mengantar"}
+                          ? <span>Sedang mengantar</span>
+                          : <span>Siap mengantar</span>}
                       </span>
                     </div>
                   </div>

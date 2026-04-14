@@ -105,7 +105,8 @@ export function DriverPanel() {
         (o) => o.driver_id === driverId && 
         o.status !== "pending" && 
         o.status !== "driver_assigned" && 
-        o.status !== "completed"
+        o.status !== "completed" &&
+        o.status !== "cancelled"
       );
       if (activeMyOrders.length > 0) {
         const latestActive = activeMyOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
@@ -655,11 +656,11 @@ export function DriverPanel() {
                 <h2 className="text-xl font-bold text-gray-900">Order Aktif</h2>
                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-full">
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
-                  <span className="font-medium">
-                    {activeOrder.status === "processing" && "Diproses"}
-                    {activeOrder.status === "going-to-store" && "Menuju Toko"}
-                    {activeOrder.status === "picked-up" && "Pesanan Diambil"}
-                    {activeOrder.status === "on-delivery" && "Dalam Perjalanan"}
+                  <span className="font-medium" translate="no">
+                    {activeOrder.status === "processing" && <span>Diproses</span>}
+                    {activeOrder.status === "going-to-store" && <span>Menuju Toko</span>}
+                    {activeOrder.status === "picked-up" && <span>Pesanan Diambil</span>}
+                    {activeOrder.status === "on-delivery" && <span>Dalam Perjalanan</span>}
                   </span>
                 </div>
               </div>

@@ -23,6 +23,7 @@ import { CartProvider } from "./contexts/CartContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { ErrorBoundaryUi } from "./components/ErrorBoundaryUi";
 
 function ServiceStatusWrapper() {
   const { appSettings } = useData();
@@ -59,6 +60,7 @@ function RootLayout() {
 export const router = createHashRouter([
   {
     element: <RootLayout />,
+    errorElement: <ErrorBoundaryUi />,
     children: [
       {
         element: <ServiceStatusWrapper />,
