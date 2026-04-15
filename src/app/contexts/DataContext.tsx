@@ -5,7 +5,7 @@ import type { Tables, TablesInsert } from "../../lib/database.types";
 
 // Re-export types for backward compatibility
 export type Village = string;
-export type OrderStatus = "pending" | "processing" | "going-to-store" | "picked-up" | "on-delivery" | "completed";
+export type OrderStatus = "pending" | "driver_assigned" | "processing" | "going-to-store" | "picked-up" | "on-delivery" | "completed" | "cancelled";
 
 export type Outlet = Tables<"outlets">;
 export type Product = Tables<"products">;

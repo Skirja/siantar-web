@@ -1,67 +1,125 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link, useParams, useNavigate } from "react-router";
-import { ArrowLeft, Phone, CheckCircle2, Clock, Truck, MapPin, Package, Navigation, Bell, CreditCard, AlertCircle, MessageCircle, Loader2, User } from "lucide-react";
+import { ArrowLeft, Phone, CheckCircle2, Clock, Truck, MapPin, Package, Navigation, Bell, CreditCard, AlertCircle, MessageCircle, Loader2, User, WifiOff } from "lucide-react";
 import { useData, OrderStatus } from "../../contexts/DataContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { toast } from "sonner";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { Logo } from "../../components/Logo";
 import { formatCurrency } from "../../utils/financeCalculations";
 import { OrderItemsDetail } from "../../components/OrderItemsDetail";
 import { OrderRatingModal } from "../../components/OrderRatingModal";
 
+// Timeout duration before auto-cancel (seconds)
+const SEARCH_TIMEOUT_SECONDS = 120;
+
 const orderStatuses: Array<{ id: string; label: string; icon: typeof Clock; description: string }> = [
-  { id: "pending", label: "Menunggu Validasi", icon: Clock, description: "Pesanan sedang divalidasi oleh admin" },
+  { id: "pending", label: "Mencari Driver", icon: Clock, description: "Sedang mencarikan driver untuk Anda" },
   { id: "driver_assigned", label: "Driver Ditugaskan", icon: User, description: "Driver telah ditugaskan untuk pesanan Anda" },
   { id: "processing", label: "Diproses", icon: Clock, description: "Pesanan sedang diproses admin" },
   { id: "going-to-store", label: "Driver menuju toko", icon: MapPin, description: "Driver dalam perjalanan ke toko" },
   { id: "picked-up", label: "Pesanan diambil", icon: Package, description: "Pesanan sudah diambil dari toko" },
   { id: "on-delivery", label: "Dalam perjalanan", icon: Truck, description: "Driver sedang mengantar pesanan" },
   { id: "completed", label: "Selesai", icon: CheckCircle2, description: "Pesanan telah sampai" },
-  { id: "cancelled", label: "Dibatalkan", icon: AlertCircle, description: "Pesanan telah dibatalkan" },
 ];
+
+// Timeline statuses (exclude cancelled — it's a terminal state shown separately)
+const timelineStatuses = orderStatuses;
 
 export function OrderTracking() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const { orders, drivers, refreshOrders, loadingOrders, orderRatings } = useData();
+  const { orders, drivers, refreshOrders, loadingOrders, orderRatings, updateOrder } = useData();
   const { customerPhone } = useAuth();
+
   const [previousStatus, setPreviousStatus] = useState<string | null>(null);
   const [driverLocation, setDriverLocation] = useState(0);
   const [isOwner, setIsOwner] = useState<boolean | null>(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
 
+  // Countdown: computed from order.created_at so it survives page reloads
+  const [countdown, setCountdown] = useState<number>(SEARCH_TIMEOUT_SECONDS);
+  const isCancellingRef = useRef(false);
+
   const currentOrder = orders.find(o => o.id === orderId);
 
-  // Auto-show rating modal when completed
+  // ─── Compute persisted countdown from created_at ────────────────────────────
+  useEffect(() => {
+    if (!currentOrder || currentOrder.status !== "pending") return;
+
+    const elapsed = Math.floor(
+      (Date.now() - new Date(currentOrder.created_at).getTime()) / 1000
+    );
+    const remaining = Math.max(0, SEARCH_TIMEOUT_SECONDS - elapsed);
+    setCountdown(remaining);
+  }, [currentOrder?.id, currentOrder?.status]);
+
+  // ─── Countdown tick + auto-cancel ───────────────────────────────────────────
+  useEffect(() => {
+    if (currentOrder?.status !== "pending") return;
+
+    // Already past timeout — cancel immediately without countdown
+    if (countdown <= 0 && !isCancellingRef.current) {
+      isCancellingRef.current = true;
+      handleAutoCancel();
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          if (!isCancellingRef.current) {
+            isCancellingRef.current = true;
+            handleAutoCancel();
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [currentOrder?.status, currentOrder?.id]);
+
+  // Auto-cancel via updateOrder (direct update — no RPC permission issue)
+  const handleAutoCancel = async () => {
+    if (!currentOrder) return;
+    try {
+      await updateOrder(currentOrder.id, { status: "cancelled" });
+      toast.error("Waktu habis", {
+        description: "Maaf, saat ini driver tidak tersedia. Silakan coba beberapa saat lagi.",
+      });
+    } catch (err) {
+      console.error("Auto-cancel failed:", err);
+    }
+  };
+
+  // ─── Auto-show rating modal when completed ──────────────────────────────────
   useEffect(() => {
     if (currentOrder?.status === "completed") {
       const alreadyRated = orderRatings.some(r => r.order_id === currentOrder.id);
       if (!alreadyRated) {
-        // Delay a bit for better UX
         const timer = setTimeout(() => setShowRatingModal(true), 1500);
         return () => clearTimeout(timer);
       }
     }
   }, [currentOrder?.status, orderRatings, currentOrder?.id]);
 
-  // Validate ownership - wait for auth to be ready before deciding
+  // ─── Validate ownership ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentOrder) {
       setIsOwner(false);
       return;
     }
-    const customerName = localStorage.getItem("sianter_customer_name") || "";
     const storedPhone = localStorage.getItem("sianter_customer_phone") || "";
-    // Use customerPhone from AuthContext OR fallback to localStorage
     const activePhone = customerPhone || storedPhone;
-    
-    // If we have no phone info yet, don't decide ownership yet (still loading)
+
     if (!activePhone) {
       setIsOwner(null);
       return;
     }
-    
+
     const normalizePhone = (p: string) => {
       let digits = (p || "").replace(/\D/g, "");
       if (digits.startsWith("0")) digits = "62" + digits.slice(1);
@@ -69,42 +127,39 @@ export function OrderTracking() {
     };
     const orderPhone = normalizePhone(currentOrder.customer_phone);
     const userPhone = normalizePhone(activePhone);
-    
-    // Check phone match specifically (ignoring strict name mapping to handle edits)
-    const owns = orderPhone === userPhone && userPhone.length > 0;
-    setIsOwner(owns);
+    setIsOwner(orderPhone === userPhone && userPhone.length > 0);
   }, [currentOrder, customerPhone]);
 
-  // Auto-refresh every 3 seconds
+  // ─── Auto-refresh every 3 seconds (polling fallback) ────────────────────────
   useEffect(() => {
     const interval = setInterval(() => {
       refreshOrders();
     }, 3000);
-
     return () => clearInterval(interval);
   }, [refreshOrders]);
 
-  // Detect status changes and notify
-  // DISABLED - commented out to prevent toast notifications for cancelled orders
-  /*
+  // ─── Toast notification on status change (re-enabled) ───────────────────────
   useEffect(() => {
     if (!currentOrder) return;
 
     if (previousStatus && currentOrder.status !== previousStatus) {
-      const statusInfo = orderStatuses.find(s => s.id === currentOrder.status);
-      if (statusInfo) {
-        toast.success(statusInfo.label, {
-          description: statusInfo.description,
-          icon: <Bell className="w-5 h-5" />,
-          duration: 5000,
-        });
+      // Skip toast if this is an auto-cancel we triggered
+      const isAutoCancel = previousStatus === "pending" && currentOrder.status === "cancelled" && isCancellingRef.current;
+      if (!isAutoCancel) {
+        const statusInfo = timelineStatuses.find(s => s.id === currentOrder.status);
+        if (statusInfo) {
+          toast.success(statusInfo.label, {
+            description: statusInfo.description,
+            icon: <Bell className="w-5 h-5" />,
+            duration: 5000,
+          });
+        }
       }
     }
     setPreviousStatus(currentOrder.status);
   }, [currentOrder?.status]);
-  */
 
-  // Simulate driver location progress based on status
+  // ─── Driver location animation ───────────────────────────────────────────────
   useEffect(() => {
     if (!currentOrder) return;
 
@@ -120,7 +175,6 @@ export function OrderTracking() {
     };
 
     const targetProgress = statusProgress[currentOrder.status] || 0;
-
     const step = targetProgress > driverLocation ? 1 : -1;
     const interval = setInterval(() => {
       setDriverLocation(prev => {
@@ -135,15 +189,18 @@ export function OrderTracking() {
     return () => clearInterval(interval);
   }, [currentOrder?.status]);
 
+  // ─── Loading / guard states ──────────────────────────────────────────────────
   if (loadingOrders && !currentOrder) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-orange-500 mx-auto mb-4" />
+          <p className="text-gray-500 font-medium">Memuat pesanan...</p>
+        </div>
       </div>
     );
   }
 
-  // Wait for ownership check to complete before showing anything
   if (isOwner === null) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -198,10 +255,148 @@ export function OrderTracking() {
     );
   }
 
-  const currentStatusIndex = orderStatuses.findIndex(s => s.id === currentOrder.status);
+  const currentStatusIndex = timelineStatuses.findIndex(s => s.id === currentOrder.status);
   const safeStatusIndex = currentStatusIndex >= 0 ? currentStatusIndex : 0;
   const driver = currentOrder.driver_id ? drivers.find(d => d.id === currentOrder.driver_id) : null;
 
+  // ── Detect online drivers for warning ────────────────────────────────────────
+  const onlineDriverCount = drivers.filter(d => d.is_online && d.is_active).length;
+
+  // ─── SEARCHING DRIVER OVERLAY (status: pending) ──────────────────────────────
+  if (currentOrder.status === "pending") {
+    const minutes = Math.floor(countdown / 60);
+    const seconds = countdown % 60;
+    const progressPct = Math.round(((SEARCH_TIMEOUT_SECONDS - countdown) / SEARCH_TIMEOUT_SECONDS) * 100);
+
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">
+        {/* Animated icon */}
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="relative mb-8"
+        >
+          <div className="absolute inset-0 bg-orange-100 rounded-full animate-ping opacity-25" />
+          <div className="relative bg-orange-500 p-8 rounded-full shadow-xl">
+            <Clock className="w-16 h-16 text-white animate-pulse" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="w-full max-w-sm"
+        >
+          <h1 className="text-3xl font-black text-gray-900 mb-3 tracking-tight">
+            Sedang mencari driver...
+          </h1>
+          <p className="text-gray-500 mb-6 leading-relaxed">
+            Mohon tunggu sebentar, kami sedang mencarikan driver terbaik untuk pesanan Anda.
+          </p>
+
+          {/* 0 driver online warning */}
+          <AnimatePresence>
+            {onlineDriverCount === 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 mb-5 flex items-start gap-3 text-left"
+              >
+                <WifiOff className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-yellow-800 mb-1">Belum ada driver online</p>
+                  <p className="text-xs text-yellow-700 leading-relaxed">
+                    Saat ini belum ada driver yang aktif. Admin akan segera menghubungi Anda untuk konfirmasi pesanan.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Countdown display */}
+          <div className="bg-orange-50 rounded-2xl p-5 border-2 border-orange-100 mb-5">
+            <div className="text-orange-600 font-black text-5xl mb-2 tabular-nums tracking-tight">
+              {minutes}:{seconds.toString().padStart(2, '0')}
+            </div>
+            <div className="text-orange-800 text-xs font-bold uppercase tracking-widest mb-3">
+              Batas Waktu Tunggu
+            </div>
+            {/* Progress bar */}
+            <div className="w-full bg-orange-100 rounded-full h-1.5 overflow-hidden">
+              <motion.div
+                className="h-full bg-orange-500 rounded-full"
+                initial={{ width: "0%" }}
+                animate={{ width: `${progressPct}%` }}
+                transition={{ duration: 1 }}
+              />
+            </div>
+          </div>
+
+          {/* Warning notice */}
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3 text-left mb-6">
+            <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-800 font-medium leading-relaxed">
+              <strong>PENTING:</strong> Mohon jangan tinggalkan atau tutup halaman ini agar pesanan Anda tetap dalam antrean sistem kami.
+            </p>
+          </div>
+
+          {/* Detail pesanan mini */}
+          <div className="bg-gray-50 rounded-xl p-4 text-left text-sm mb-6">
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">Ringkasan Pesanan</p>
+            <p className="font-semibold text-gray-900">{currentOrder.outlet_name}</p>
+            <p className="text-gray-500 text-xs mt-1">Order #{currentOrder.id.slice(0, 8)}</p>
+            <p className="text-orange-600 font-bold mt-2">{formatCurrency(currentOrder.total)}</p>
+          </div>
+        </motion.div>
+
+        <div className="flex items-center gap-2 text-gray-400">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-sm font-medium">Sistem Realtime Aktif</span>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── CANCELLED STATE ──────────────────────────────────────────────────────────
+  if (currentOrder.status === "cancelled") {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6 text-center">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="max-w-sm w-full"
+        >
+          <div className="bg-red-100 p-8 rounded-full mb-6 inline-flex">
+            <AlertCircle className="w-16 h-16 text-red-600" />
+          </div>
+          <h1 className="text-2xl font-black text-gray-900 mb-3">Pesanan Dibatalkan</h1>
+          <p className="text-gray-500 mb-8 leading-relaxed">
+            Mohon maaf, saat ini driver tidak tersedia atau pesanan telah dibatalkan.
+            Silakan coba lakukan pemesanan ulang beberapa saat lagi.
+          </p>
+
+          <div className="space-y-3">
+            <Link
+              to="/home"
+              className="flex items-center justify-center gap-2 w-full py-4 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200 active:scale-95"
+            >
+              Kembali ke Beranda
+            </Link>
+            <Link
+              to="/home/history"
+              className="flex items-center justify-center gap-2 w-full py-3 text-gray-600 font-medium hover:text-gray-900 transition-colors text-sm"
+            >
+              Lihat Riwayat Pesanan
+            </Link>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ─── MAIN TRACKING VIEW ───────────────────────────────────────────────────────
   return (
     <div className="pb-20 md:pb-8 min-h-screen bg-gradient-to-b from-gray-50 to-white">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -232,16 +427,14 @@ export function OrderTracking() {
               <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
                 currentOrder.status === "completed"
                   ? "bg-green-500 text-white"
-                  : currentOrder.status === "cancelled"
-                  ? "bg-red-500 text-white"
                   : "bg-white text-orange-600"
               }`}>
                 <div className={`w-2 h-2 rounded-full ${
-                  currentOrder.status === "completed" ? "bg-white" : currentOrder.status === "cancelled" ? "bg-white" : "bg-orange-600 animate-pulse"
+                  currentOrder.status === "completed" ? "bg-white" : "bg-orange-600 animate-pulse"
                 }`} />
-                  <span className="font-medium">
-                    {currentOrder.status === "completed" ? <span>Selesai</span> : currentOrder.status === "cancelled" ? <span>Dibatalkan</span> : <span>Aktif</span>}
-                  </span>
+                <span className="font-medium">
+                  {currentOrder.status === "completed" ? "Selesai" : "Aktif"}
+                </span>
               </div>
             </div>
           </div>
@@ -293,25 +486,6 @@ export function OrderTracking() {
                 </div>
               </div>
             </button>
-          </motion.div>
-        )}
-
-        {/* Cancelled Order Banner */}
-        {currentOrder.status === "cancelled" && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-red-50 border-2 border-red-200 rounded-2xl p-6 mb-6"
-          >
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-semibold text-red-900 mb-1">Pesanan Dibatalkan</h4>
-                <p className="text-sm text-red-800">
-                  Pesanan ini telah dibatalkan. Jika Anda sudah melakukan pembayaran, silakan hubungi admin untuk pengembalian dana.
-                </p>
-              </div>
-            </div>
           </motion.div>
         )}
 
@@ -393,7 +567,7 @@ export function OrderTracking() {
           <h3 className="font-semibold text-gray-900 mb-6">Status Pesanan</h3>
 
           <div className="relative py-4">
-            {orderStatuses.map((status, index) => {
+            {timelineStatuses.map((status, index) => {
               const Icon = status.icon;
               const isCompleted = index <= safeStatusIndex;
               const isActive = status.id === currentOrder.status;
@@ -406,7 +580,7 @@ export function OrderTracking() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  {index < orderStatuses.length - 1 && (
+                  {index < timelineStatuses.length - 1 && (
                     <div
                       className={`absolute left-6 top-14 w-0.5 h-20 transition-all duration-500 ${
                         isCompleted ? "bg-orange-500" : "bg-gray-300"
@@ -499,7 +673,7 @@ export function OrderTracking() {
                 </div>
               </div>
 
-              {currentOrder.status !== "pending" && driver.phone && (
+              {driver.phone && (
                 <div className="grid grid-cols-2 gap-3">
                   <a
                     href={`tel:${driver.phone}`}
@@ -525,24 +699,6 @@ export function OrderTracking() {
           </motion.div>
         )}
 
-        {currentOrder.status === "pending" && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-6 mb-6"
-          >
-            <div className="flex items-start gap-3">
-              <Clock className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-semibold text-yellow-900 mb-1">Menunggu Validasi</h4>
-                <p className="text-sm text-yellow-800">
-                  Pesanan Anda sedang divalidasi oleh admin untuk memastikan data pengiriman sudah benar.
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
         {/* Order Details */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -551,8 +707,7 @@ export function OrderTracking() {
           className="bg-white rounded-2xl shadow-lg p-6"
         >
           <h3 className="font-semibold text-gray-900 mb-4">Detail Pesanan</h3>
-          
-          {/* Inline Order Items */}
+
           <OrderItemsDetail
             orderId={currentOrder.id}
             outletName={currentOrder.outlet_name}

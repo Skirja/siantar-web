@@ -114,7 +114,17 @@ export function Home() {
                   <div className="flex-1">
                     <p className="font-semibold">Pesanan Aktif</p>
                     <p className="text-sm text-orange-100">
-                      Order #{latestActiveOrder.id} sedang diproses
+                      {latestActiveOrder.status === "pending"
+                        ? "Mencari driver..."
+                        : latestActiveOrder.status === "driver_assigned"
+                        ? "🎉 Driver ditugaskan!"
+                        : latestActiveOrder.status === "going-to-store"
+                        ? "Driver menuju toko"
+                        : latestActiveOrder.status === "picked-up"
+                        ? "Pesanan sudah diambil"
+                        : latestActiveOrder.status === "on-delivery"
+                        ? "Driver sedang mengantar"
+                        : "Sedang diproses"}
                     </p>
                   </div>
                 </div>

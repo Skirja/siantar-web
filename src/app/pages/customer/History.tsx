@@ -61,6 +61,8 @@ export function History() {
         return "Menunggu Validasi";
       case "cancelled":
         return "Dibatalkan";
+      case "driver_assigned":
+        return "Driver Ditugaskan";
       case "processing":
         return "Diproses";
       case "going-to-store":
