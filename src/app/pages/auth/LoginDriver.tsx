@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { useAuth } from "../../contexts/AuthContext";
+import { useTitle } from "../../hooks/useTitle";
 import { Phone, Lock, AlertCircle, Truck, User } from "lucide-react";
 import logoImg from "../../../assets/siantar-aja-logo.png";
 
 export function LoginDriver() {
+  useTitle("Login Driver");
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

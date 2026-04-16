@@ -1,9 +1,11 @@
 import { Link, useNavigate } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import { ArrowLeft, Plus, Minus, Trash2, ImageIcon } from "lucide-react";
 import { useCart } from "../../contexts/CartContext";
 import { formatCurrency } from "../../utils/financeCalculations";
 
 export function Cart() {
+  useTitle("Keranjang Belanja");
   const { items, updateQuantity, removeItem, notes, setNotes, subtotal } = useCart();
   const navigate = useNavigate();
 

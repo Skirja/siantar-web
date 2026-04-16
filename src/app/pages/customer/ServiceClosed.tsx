@@ -1,10 +1,13 @@
 import { useData } from "../../contexts/DataContext";
+import { useTitle } from "../../hooks/useTitle";
 import { Logo } from "../../components/Logo";
 import { DoorClosed, Clock, ArrowRight } from "lucide-react";
 import { Link } from "react-router";
 
 export function ServiceClosed() {
+  useTitle("Layanan Tutup");
   const { appSettings } = useData();
+
 
   const message = appSettings.service_closed_message || "Saat ini layanan SiAnter sedang tutup sementara.";
   const hours = appSettings.service_hours || "Silakan kembali lagi pada jam operasional berikutnya.";

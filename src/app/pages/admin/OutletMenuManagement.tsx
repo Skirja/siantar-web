@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import { ArrowLeft, Plus, Edit2, Trash2, X, Upload, Image as ImageIcon, PackageX, Loader2, Copy, Star } from "lucide-react";
 import { useData, ProductWithDetails, ProductVariant, ProductExtra } from "../../contexts/DataContext";
 import { formatCurrency } from "../../utils/financeCalculations";
@@ -19,6 +20,9 @@ export function OutletMenuManagement() {
     appSettings 
   } = useData();
 
+  const outlet = outlets.find((o) => o.id === outletId);
+  useTitle(outlet?.name || "Manajemen Menu");
+
   const menuCategories = appSettings.menu_categories || [
     "Bakso & Mie Ayam", "Nasi Goreng & Mie Goreng", "Ayam Bakar & Ayam Goreng",
     "Bebek & Ikan", "Seafood", "Soto & Sop", "Pecel Lele / Lalapan",
@@ -29,7 +33,6 @@ export function OutletMenuManagement() {
     "Catering / Nasi Box"
   ];
 
-  const outlet = outlets.find((o) => o.id === outletId);
   const outletProducts = outletId ? getProductsByOutlet(outletId) : [];
 
   const [showMenuModal, setShowMenuModal] = useState(false);

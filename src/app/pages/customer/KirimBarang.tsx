@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import {
   ArrowLeft,
   Package,
@@ -29,6 +30,8 @@ const PACKAGE_CATEGORIES = [
 ];
 
 export function KirimBarang() {
+  useTitle("Kirim Barang");
+
   const navigate = useNavigate();
   const { addOrder, feeSettings, outlets, orders } = useData();
 

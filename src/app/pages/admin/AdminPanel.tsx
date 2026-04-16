@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, Link } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import {
   Package,
   Users,
@@ -72,6 +73,8 @@ const VILLAGE_GROUPS = [
 ];
 
 export function AdminPanel() {
+  useTitle("Panel Admin");
+
   const { role, isAuthenticated, logout, loading } = useAuth();
   const navigate = useNavigate();
   const {

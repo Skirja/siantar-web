@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import { ArrowLeft, Copy, Check, Upload, MessageCircle, X, AlertCircle, CreditCard, Clock, Loader2 } from "lucide-react";
 import { useData } from "../../contexts/DataContext";
 import { formatCurrency } from "../../utils/financeCalculations";
@@ -7,7 +8,9 @@ import { uploadFile } from "../../../lib/supabase";
 import { toast } from "sonner";
 
 export function PaymentInstruction() {
+  useTitle("Instruksi Pembayaran");
   const { orderId } = useParams<{ orderId: string }>();
+
   const navigate = useNavigate();
   const { orders, updateOrderPayment, paymentAccounts } = useData();
   const fileInputRef = useRef<HTMLInputElement>(null);

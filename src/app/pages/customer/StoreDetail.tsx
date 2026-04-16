@@ -1,4 +1,5 @@
 import { useParams, Link } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import { ArrowLeft, MapPin, Plus, ShoppingCart, ImageIcon, Loader2, DoorClosed, AlertCircle } from "lucide-react";
 import { useCart } from "../../contexts/CartContext";
 import { useData } from "../../contexts/DataContext";
@@ -17,6 +18,7 @@ export function StoreDetail() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   const outlet = outlets.find((o) => o.id === storeId);
+  useTitle(outlet?.name || "Detail Toko");
   const isOpen = outlet ? isOutletCurrentlyOpen(outlet) : false;
 
   useEffect(() => {

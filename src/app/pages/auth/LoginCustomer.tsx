@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import { useAuth } from "../../contexts/AuthContext";
 import { User, Phone, AlertCircle } from "lucide-react";
 import logoImg from "../../../assets/siantar-aja-logo.png";
 
 export function LoginCustomer() {
+  useTitle("Login Pelanggan");
+
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [error, setError] = useState("");

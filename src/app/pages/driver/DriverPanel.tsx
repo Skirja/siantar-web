@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import {
   Package,
   MapPin,
@@ -40,6 +41,8 @@ const normalizePhoneForWhatsApp = (phone: string | null | undefined): string | n
 };
 
 export function DriverPanel() {
+  useTitle("Panel Driver");
+
   const { role, isAuthenticated, logout, driverId, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const {

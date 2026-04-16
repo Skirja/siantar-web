@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import { ArrowLeft, MapPin, Loader2, Navigation } from "lucide-react";
 import { toast } from "sonner";
 import { useCart } from "../../contexts/CartContext";
@@ -16,6 +17,8 @@ import type { TablesInsert } from "../../../lib/database.types";
 import { isOutletCurrentlyOpen } from "../../utils/scheduleUtils";
 import { supabase } from "../../../lib/supabase";
 export function Checkout() {
+  useTitle("Checkout");
+
   const { items, subtotal: cartSubtotal, clearCart } = useCart();
   const { addOrder, outlets, feeSettings, orders } = useData();
   const { customerPhone, username: customerName } = useAuth();

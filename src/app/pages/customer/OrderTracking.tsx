@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useParams, useNavigate } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import { ArrowLeft, Phone, CheckCircle2, Clock, Truck, MapPin, Package, Navigation, Bell, CreditCard, AlertCircle, MessageCircle, Loader2, User, WifiOff } from "lucide-react";
 import { useData, OrderStatus } from "../../contexts/DataContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -27,6 +28,8 @@ const orderStatuses: Array<{ id: string; label: string; icon: typeof Clock; desc
 const timelineStatuses = orderStatuses;
 
 export function OrderTracking() {
+  useTitle("Lacak Pesanan");
+
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const { orders, drivers, refreshOrders, loadingOrders, orderRatings, updateOrder } = useData();

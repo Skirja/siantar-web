@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import { ArrowLeft, CreditCard, DollarSign, Save, Loader2, Plus, Trash2, Edit2, X, MapPin, Tag, ToggleLeft, ToggleRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useData } from "../../contexts/DataContext";
@@ -9,6 +10,8 @@ import { Logo } from "../../components/Logo";
 import { formatCurrency } from "../../utils/financeCalculations";
 
 export function Settings() {
+  useTitle("Pengaturan");
+
   const { role, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { paymentAccounts, refreshPaymentAccounts, feeSettings, refreshFeeSettings, distanceMatrix, refreshDistanceMatrix, outlets, updateOutlet } = useData();

@@ -1,9 +1,12 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import { motion } from "motion/react";
 import { Logo } from "../../components/Logo";
 
 export function Splash() {
+  useTitle("");
+
   const navigate = useNavigate();
 
   useEffect(() => {

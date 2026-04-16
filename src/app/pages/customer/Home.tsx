@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import { Search, ShoppingBag, Package, Coffee, MapPin, Truck, X, Store, ImageIcon, Loader2, Star, Clock, DoorOpen, DoorClosed, ArrowRight } from "lucide-react";
 import { useData } from "../../contexts/DataContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -21,6 +22,8 @@ const foodCategories = [
 ];
 
 export function Home() {
+  useTitle("Beranda");
+
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showOrderNotification, setShowOrderNotification] = useState(true);

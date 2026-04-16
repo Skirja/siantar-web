@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import { Clock, MapPin, CheckCircle2, Package, Loader2, ShoppingBag } from "lucide-react";
 import { useData } from "../../contexts/DataContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -9,6 +10,8 @@ import { OrderRatingModal } from "../../components/OrderRatingModal";
 import { motion } from "motion/react";
 
 export function History() {
+  useTitle("Riwayat Pesanan");
+
   const { orders, loadingOrders, orderRatings } = useData();
   const { customerPhone } = useAuth();
   const navigate = useNavigate();

@@ -1,9 +1,12 @@
 import { useNavigate } from "react-router";
+import { useTitle } from "../../hooks/useTitle";
 import { ShoppingBag, Package, ArrowRight, Clock } from "lucide-react";
 import { Logo } from "../../components/Logo";
 
 export function ServiceSelection() {
+  useTitle("Pilih Layanan");
   const navigate = useNavigate();
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center p-4">
