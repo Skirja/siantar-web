@@ -13,13 +13,40 @@ import { isOutletCurrentlyOpen, getNextOpenTime } from "../../utils/scheduleUtil
 type Banner = Tables<"banners">;
 
 const foodCategories = [
-  { id: "Nasi Goreng & Mie Goreng", label: "Makanan", icon: "🍚" },
-  { id: "Kopi & Teh", label: "Minuman", icon: "🥤" },
-  { id: "Snack", label: "Snack", icon: "🍟" },
-  { id: "Sambal", label: "Sambal", icon: "🌶" },
-  { id: "Sayur", label: "Sayur", icon: "🥬" },
-  { id: "Lain-lain", label: "Lain-lain", icon: "🛒" },
+  { id: "makanan", label: "Makanan", icon: "🍚" },
+  { id: "minuman", label: "Minuman", icon: "🥤" },
+  { id: "snack", label: "Snack", icon: "🍟" },
+  { id: "lain-lain", label: "Lain-lain", icon: "🛒" },
 ];
+
+const isOutletInCategory = (outletCategory: string, selectedCategoryId: string) => {
+  const categoryLower = outletCategory.toLowerCase();
+  
+  switch (selectedCategoryId) {
+    case "makanan":
+      return [
+        "bakso & mie ayam", "nasi goreng & mie goreng", "ayam bakar & ayam goreng", 
+        "bebek & ikan", "seafood", "soto & sop", "pecel lele / lalapan", 
+        "rice bowl & nasi kotak", "sate & grill", "martabak & terang bulan",
+        "sayur", "sambal"
+      ].includes(categoryLower);
+    case "minuman":
+      return [
+        "minuman dingin", "kopi & teh", "jus & minuman buah", "es campur / es tradisional"
+      ].includes(categoryLower);
+    case "snack":
+      return [
+        "snack & camilan", "gorengan", "cilok, bakso bakar & jajanan", 
+        "kue & dessert", "roti & bakery"
+      ].includes(categoryLower);
+    case "lain-lain":
+      return [
+        "frozen food", "catering / nasi box"
+      ].includes(categoryLower) || categoryLower === "lain-lain";
+    default:
+      return false;
+  }
+};
 
 export function Home() {
   useTitle("Beranda");
@@ -72,7 +99,7 @@ export function Home() {
   // Filter outlets based on category and search
   const filteredOutlets = outlets.filter((outlet) => {
     const matchesCategory =
-      selectedCategory === null || outlet.category === selectedCategory;
+      selectedCategory === null || isOutletInCategory(outlet.category, selectedCategory);
     const matchesSearch =
       outlet.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       outlet.village.toLowerCase().includes(searchQuery.toLowerCase()) ||
