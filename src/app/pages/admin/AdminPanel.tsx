@@ -53,16 +53,17 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/ta
 import { OrderItemsDetail } from "../../components/OrderItemsDetail";
 
 const VILLAGE_GROUPS = [
-  "Balai Riam",
-  "Ajang",
-  "Natai Kondang",
-  "Bangkuang",
-  "Lupu Peruca",
-  "Sekombulan",
-  "Bukit Sakti",
-  "Pemuar",
-  "Air Beras"
+  "Desa Bukit Sungkai",
+  "Desa Sekuningan Baru",
+  "Desa Balai Riam (Pusat Kecamatan)",
+  "Desa Bangun Jaya",
+  "Desa Lupu Peruca",
+  "Desa Natai Kondang",
+  "Desa Ajang"
 ];
+
+const WILAYAH_1 = ["Desa Bukit Sungkai", "Desa Sekuningan Baru", "Desa Balai Riam (Pusat Kecamatan)", "Desa Bangun Jaya"];
+const WILAYAH_2 = ["Desa Lupu Peruca", "Desa Natai Kondang", "Desa Ajang"];
 
 export function AdminPanel() {
   useTitle("Panel Admin");
@@ -1170,35 +1171,77 @@ export function AdminPanel() {
                     <MapPin className="w-5 h-5 text-blue-500" />
                     Ketersediaan Lokasi Pengantaran
                   </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {VILLAGE_GROUPS.map((village) => {
-                      const isInactive = (appSettings.inactive_villages || []).includes(village);
-                      return (
-                        <div key={village} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <span className={`text-sm font-medium ${isInactive ? "text-gray-400 line-through" : "text-gray-700"}`}>
-                            {village}
-                          </span>
-                          <button
-                            onClick={() => {
-                              const current = appSettings.inactive_villages || [];
-                              const next = isInactive
-                                ? current.filter((v: string) => v !== village)
-                                : [...current, village];
-                              updateAppSetting("inactive_villages", next);
-                            }}
-                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
-                              !isInactive ? "bg-blue-500" : "bg-gray-300"
-                            }`}
-                          >
-                            <span
-                              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                                !isInactive ? "translate-x-5.5" : "translate-x-1"
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      );
-                    })}
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Wilayah 1 */}
+                    <div>
+                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Wilayah 1 (Dekat)</h4>
+                      <div className="space-y-2">
+                        {WILAYAH_1.map((village) => {
+                          const isInactive = (appSettings.inactive_villages || []).includes(village);
+                          return (
+                            <div key={village} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <span className={`text-sm font-medium ${isInactive ? "text-gray-400 line-through" : "text-gray-700"}`}>
+                                {village}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  const current = appSettings.inactive_villages || [];
+                                  const next = isInactive
+                                    ? current.filter((v: string) => v !== village)
+                                    : [...current, village];
+                                  updateAppSetting("inactive_villages", next);
+                                }}
+                                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
+                                  !isInactive ? "bg-blue-500" : "bg-gray-300"
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                    !isInactive ? "translate-x-5.5" : "translate-x-1"
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Wilayah 2 */}
+                    <div>
+                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Wilayah 2 (Jauh)</h4>
+                      <div className="space-y-2">
+                        {WILAYAH_2.map((village) => {
+                          const isInactive = (appSettings.inactive_villages || []).includes(village);
+                          return (
+                            <div key={village} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <span className={`text-sm font-medium ${isInactive ? "text-gray-400 line-through" : "text-gray-700"}`}>
+                                {village}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  const current = appSettings.inactive_villages || [];
+                                  const next = isInactive
+                                    ? current.filter((v: string) => v !== village)
+                                    : [...current, village];
+                                  updateAppSetting("inactive_villages", next);
+                                }}
+                                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
+                                  !isInactive ? "bg-blue-500" : "bg-gray-300"
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                    !isInactive ? "translate-x-5.5" : "translate-x-1"
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
 

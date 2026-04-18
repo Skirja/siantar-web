@@ -17,15 +17,13 @@ import type { TablesInsert } from "../../../lib/database.types";
 import { isOutletCurrentlyOpen } from "../../utils/scheduleUtils";
 import { supabase } from "../../../lib/supabase";
 const VILLAGE_GROUPS = [
-  "Balai Riam",
-  "Ajang",
-  "Natai Kondang",
-  "Bangkuang",
-  "Lupu Peruca",
-  "Sekombulan",
-  "Bukit Sakti",
-  "Pemuar",
-  "Air Beras"
+  "Desa Bukit Sungkai",
+  "Desa Sekuningan Baru",
+  "Desa Balai Riam (Pusat Kecamatan)",
+  "Desa Bangun Jaya",
+  "Desa Lupu Peruca",
+  "Desa Natai Kondang",
+  "Desa Ajang"
 ];
 
 export function Checkout() {
