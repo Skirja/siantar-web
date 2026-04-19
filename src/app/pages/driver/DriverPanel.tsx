@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { useTitle } from "../../hooks/useTitle";
 import {
@@ -22,9 +22,10 @@ import {
   Clock,
   ShoppingBag,
   Navigation,
+  Store,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
-import { useData } from "../../contexts/DataContext";
+import { useData, type OrderStatus } from "../../contexts/DataContext";
 import { calculateOrderFinance, calculateDriverBonus, formatCurrency } from "../../utils/financeCalculations";
 import { Logo } from "../../components/Logo";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
@@ -51,7 +52,15 @@ export function DriverPanel() {
     driverRejectOrder, toggleDriverOnline, completeOrderWithDeduction, updateDriverBalance,
     updateDriverLocation
   } = useData();
-  const [activeOrder, setActiveOrder] = useState<any>(null);
+  
+  // Multi-order support: get all active orders for this driver
+  const myActiveOrders = useMemo(() => {
+    return orders.filter(o => 
+      o.driver_id === driverId && 
+      ["processing", "going-to-store", "picked-up", "on-delivery"].includes(o.status)
+    ).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }, [orders, driverId]);
+
   const [actionLoading, setActionLoading] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<'orders' | 'history'>('orders');
@@ -96,29 +105,6 @@ export function DriverPanel() {
     };
   }, [isOnline, driverId, updateDriverLocation]);
 
-  // Sync activeOrder with realtime updates or auto-assign if none selected
-  useEffect(() => {
-    if (activeOrder) {
-      const updated = orders.find(o => o.id === activeOrder.id);
-      if (updated && updated.status !== activeOrder.status) {
-        setActiveOrder(updated);
-      }
-    } else if (driverId && orders.length > 0) {
-      // Auto-assign the most recent active order that this driver is already working on
-      const activeMyOrders = orders.filter(
-        (o) => o.driver_id === driverId && 
-        o.status !== "pending" && 
-        o.status !== "driver_assigned" && 
-        o.status !== "completed" &&
-        o.status !== "cancelled"
-      );
-      if (activeMyOrders.length > 0) {
-        const latestActive = activeMyOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-        setActiveOrder(latestActive);
-      }
-    }
-  }, [orders, activeOrder, driverId]);
-
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated || role !== "driver" || !driverId) {
@@ -135,7 +121,7 @@ export function DriverPanel() {
   }
 
   const myOrders = orders.filter(
-    (o) => o.driver_id === driverId && o.status !== "pending" && o.status !== "completed"
+    (o) => o.driver_id === driverId && o.status === "driver_assigned"
   );
   const completedOrders = orders.filter((o) => o.driver_id === driverId && o.status === "completed");
   const today = new Date().toDateString();
@@ -164,7 +150,6 @@ export function DriverPanel() {
     setActionLoading(true);
     try {
       await updateOrderStatus(order.id, "processing", driverId);
-      setActiveOrder({ ...order, status: "processing" });
       toast.success("Pesanan diterima!");
     } catch {
       toast.error("Gagal mengupdate status");
@@ -173,78 +158,32 @@ export function DriverPanel() {
     }
   };
 
-  const handleGoingToStore = async (): Promise<void> => {
-    if (!activeOrder) return;
+  const handleUpdateStatus = async (orderId: string, nextStatus: OrderStatus): Promise<void> => {
     setActionLoading(true);
     try {
-      await updateOrderStatus(activeOrder.id, "going-to-store", driverId);
-      setActiveOrder({ ...activeOrder, status: "going-to-store" });
-      toast.success("Status: Menuju Toko");
+      if (nextStatus === "completed") {
+        await completeOrderWithDeduction(orderId, driverId!);
+        toast.success("Pengiriman selesai! Setoran otomatis dipotong.");
+        
+        // Auto Bonus Logic Check
+        const updatedStats = todayStats.orders + 1;
+        const prevBonus = calculateDriverBonus(todayStats.orders).totalBonus;
+        const newBonus = calculateDriverBonus(updatedStats).totalBonus;
+        if (newBonus > prevBonus) {
+          const bonusAmount = newBonus - prevBonus;
+          try {
+            await updateDriverBalance(driverId!, bonusAmount);
+            toast.success(`🎉 Selamat! Milestone ${updatedStats} tercapai: Bonus Rp${bonusAmount.toLocaleString()}`);
+          } catch (err) {
+            console.error("Gagal top up bonus", err);
+          }
+        }
+      } else {
+        await updateOrderStatus(orderId, nextStatus, driverId);
+        toast.success(`Status diperbarui ke ${nextStatus}`);
+      }
     } catch (err) {
       toast.error("Gagal mengupdate status");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handlePickup = async (): Promise<void> => {
-    if (!activeOrder) return;
-    setActionLoading(true);
-    try {
-      await updateOrderStatus(activeOrder.id, "picked-up", driverId);
-      setActiveOrder({ ...activeOrder, status: "picked-up" });
-      toast.success("Pesanan berhasil diambil");
-    } catch {
-      toast.error("Gagal mengupdate status");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleDeliver = async (): Promise<void> => {
-    if (!activeOrder) return;
-    setActionLoading(true);
-    try {
-      await updateOrderStatus(activeOrder.id, "on-delivery", driverId);
-      setActiveOrder({ ...activeOrder, status: "on-delivery" });
-      toast.success("Mulai pengiriman");
-    } catch {
-      toast.error("Gagal mengupdate status");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleComplete = async (): Promise<void> => {
-    if (!activeOrder) return;
-    setActionLoading(true);
-    try {
-      await completeOrderWithDeduction(activeOrder.id, driverId!);
-      toast.success("Pengiriman selesai! Setoran otomatis dipotong.");
-      
-      // Auto Bonus Logic Check
-      const updatedStats = todayStats.orders + 1; // Since we just completed one
-      const prevBonus = calculateDriverBonus(todayStats.orders).totalBonus;
-      const newBonus = calculateDriverBonus(updatedStats).totalBonus;
-      if (newBonus > prevBonus) {
-        const bonusAmount = newBonus - prevBonus;
-        try {
-          await updateDriverBalance(driverId!, bonusAmount);
-          toast.success(`🎉 Selamat! Anda mencapai milestone ${updatedStats} pesanan dan mendapat bonus tambahan Rp${bonusAmount.toLocaleString("id-ID")}`);
-        } catch (err) {
-          console.error("Gagal top up bonus", err);
-        }
-      }
-
-      setActiveOrder(null);
-    } catch {
-      try {
-        await updateOrderStatus(activeOrder.id, "completed", driverId);
-        toast.success("Pengiriman selesai!");
-        setActiveOrder(null);
-      } catch {
-        toast.error("Gagal menyelesaikan order");
-      }
     } finally {
       setActionLoading(false);
     }
@@ -269,7 +208,6 @@ export function DriverPanel() {
     try {
       await driverRejectOrder(order.id, driverId);
       toast.success("Order ditolak. Saldo dipotong Rp500 sebagai penalti.");
-      if (activeOrder?.id === order.id) setActiveOrder(null);
     } catch (err: any) {
       toast.error(err.message || "Gagal menolak order");
     } finally {
@@ -313,7 +251,7 @@ export function DriverPanel() {
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ───── No Active Order View ───── */}
-        {!activeOrder ? (
+        {myActiveOrders.length === 0 ? (
           <div>
             {/* Stats Row */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -683,271 +621,214 @@ export function DriverPanel() {
           </div>
 
         ) : (
-          /* ───── Active Order View ───── */
-          <div>
-            <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Order Aktif</h2>
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-full">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
-                  <span className="font-medium" translate="no">
-                    {activeOrder.status === "processing" && <span>Diproses</span>}
-                    {activeOrder.status === "going-to-store" && <span>Menuju Toko</span>}
-                    {activeOrder.status === "picked-up" && <span>Pesanan Diambil</span>}
-                    {activeOrder.status === "on-delivery" && <span>Dalam Perjalanan</span>}
-                  </span>
+          /* ───── Multi-Order Routing View ───── */
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-orange-100">
+              <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4 flex items-center justify-between text-white">
+                <div className="flex items-center gap-2">
+                  <Navigation className="w-5 h-5 animate-pulse" />
+                  <h2 className="text-lg font-bold">Rute Pengantaran Aktif</h2>
+                </div>
+                <div className="text-xs bg-white/20 px-2 py-1 rounded-full font-bold">
+                  {myActiveOrders.length} Pesanan
                 </div>
               </div>
 
-              <div className="space-y-4 mb-6">
-                <div>
-                  <div className="font-semibold text-gray-900 mb-2">Order #{activeOrder.id.slice(0, 8)}</div>
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      <span>{activeOrder.customer_name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4" />
-                      <span>{activeOrder.customer_phone || "No phone"}</span>
-                    </div>
-                  </div>
-                </div>
+              <div className="p-6">
+                <div className="space-y-8 relative">
+                  {/* Timeline Line */}
+                  <div className="absolute left-[19px] top-2 bottom-2 w-0.5 bg-gray-100" />
 
-                <div className="p-4 bg-gray-50 rounded-lg space-y-3 text-sm">
-                  <div className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 mt-0.5 text-orange-600 flex-shrink-0" />
-                    <div>
-                      <div className="font-medium text-gray-900 mb-1">Lokasi Ambil:</div>
-                      <div className="text-gray-600">{activeOrder.outlet_name}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center mb-1">
-                        <div className="font-medium text-gray-900">Alamat Pengiriman:</div>
-                        {activeOrder.customer_latitude && activeOrder.customer_longitude && (
-                          <a
-                            href={`https://www.google.com/maps/dir/?api=1&origin=${
-                              outlets.find(o => o.id === activeOrder.outlet_id)?.latitude || ""
-                            },${
-                              outlets.find(o => o.id === activeOrder.outlet_id)?.longitude || ""
-                            }&destination=${activeOrder.customer_latitude},${activeOrder.customer_longitude}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full hover:bg-green-200 font-semibold"
-                          >
-                            Buka Peta
-                          </a>
-                        )}
-                      </div>
-                      <div className="text-gray-600">{activeOrder.address}, {activeOrder.customer_village}</div>
-                    </div>
-                  </div>
-                </div>
+                  {/* Combined Tasks Generation */}
+                  {(() => {
+                    // Logic: Pickups first, then Deliveries
+                    const pickups = myActiveOrders.filter(o => o.status === "processing" || o.status === "going-to-store");
+                    const readyToPick = myActiveOrders.filter(o => o.status === "going-to-store");
+                    const deliverable = myActiveOrders.filter(o => o.status === "picked-up" || o.status === "on-delivery");
+                    
+                    const tasks: any[] = [];
+                    
+                    // Group pickups by outlet to avoid redundancy
+                    const uniqueOutlets = Array.from(new Set(myActiveOrders.map(o => o.outlet_id)));
+                    uniqueOutlets.forEach(oid => {
+                      const outletOrders = myActiveOrders.filter(o => o.outlet_id === oid && ["processing", "going-to-store"].includes(o.status));
+                      if (outletOrders.length > 0) {
+                        const outlet = outlets.find(o => o.id === oid);
+                        tasks.push({
+                          type: 'pickup',
+                          outlet: outlet,
+                          orders: outletOrders,
+                          status: outletOrders.every(o => o.status === "going-to-store") ? 'ready' : 'pending'
+                        });
+                      }
+                    });
 
-                {(() => {
-                  const finance = getFinance(activeOrder);
-                  return (
-                    <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-lg p-5">
-                      <div className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5 text-green-600" />
-                        Ringkasan Keuangan
-                      </div>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 bg-white rounded-lg">
-                          <div>
-                            <div className="text-xs text-gray-600 mb-1">Customer Bayar</div>
-                            <div className="text-2xl font-bold text-gray-900">{formatCurrency(finance.total)}</div>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="p-3 bg-white rounded-lg">
-                            <div className="text-xs text-gray-600 mb-1">Bayar Toko</div>
-                            <div className="font-semibold text-gray-900">{formatCurrency(finance.amountToStore)}</div>
-                          </div>
-                          <div className="p-3 bg-white rounded-lg">
-                            <div className="text-xs text-gray-600 mb-1">Earning Kamu</div>
-                            <div className="font-semibold text-green-600">{formatCurrency(finance.driverEarning)}</div>
-                          </div>
-                          <div className="p-3 bg-white rounded-lg">
-                            <div className="text-xs text-gray-600 mb-1">Setor Admin</div>
-                            <div className="font-semibold text-orange-600">{formatCurrency(finance.setoranToAdmin)}</div>
-                            <div className="text-[8px] text-gray-400 leading-tight mt-1">
-                              20% Ongkir: {formatCurrency(finance.setoranToAdmin - (activeOrder.service_fee || 0))}<br/>
-                              Markup: {formatCurrency(activeOrder.service_fee || 0)}
+                    // Add deliveries
+                    myActiveOrders.filter(o => ["picked-up", "on-delivery"].includes(o.status)).forEach(order => {
+                      tasks.push({
+                        type: 'delivery',
+                        order: order,
+                        status: order.status === "on-delivery" ? 'ready' : 'pending'
+                      });
+                    });
+
+                    return tasks.map((task, idx) => {
+                      const isLast = idx === tasks.length - 1;
+                      if (task.type === 'pickup') {
+                        return (
+                          <div key={`pickup-${task.outlet?.id}`} className="relative pl-10">
+                            <div className={`absolute left-0 top-0 w-10 h-10 rounded-full flex items-center justify-center z-10 ${
+                              task.status === 'ready' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'
+                            }`}>
+                              <Store className="w-5 h-5" />
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <h3 className="font-bold text-gray-900">{task.outlet?.name}</h3>
+                                  <p className="text-xs text-gray-500">{task.outlet?.village}</p>
+                                </div>
+                                <a 
+                                  href={`https://www.google.com/maps?q=${task.outlet?.latitude},${task.outlet?.longitude}`}
+                                  target="_blank" rel="noopener noreferrer"
+                                  className="p-2 bg-white rounded-lg shadow-sm text-blue-600"
+                                >
+                                  <Navigation className="w-4 h-4" />
+                                </a>
+                              </div>
+                              <div className="flex flex-wrap gap-2 mb-4">
+                                {task.orders.map((o: any) => (
+                                  <span key={o.id} className="text-[10px] bg-white border border-gray-200 px-2 py-1 rounded-full font-medium">
+                                    #{o.id.slice(0, 8)}
+                                  </span>
+                                ))}
+                              </div>
+                              <div className="flex gap-2">
+                                {task.orders[0].status === "processing" ? (
+                                  <button
+                                    onClick={() => handleUpdateStatus(task.orders[0].id, "going-to-store")}
+                                    disabled={actionLoading}
+                                    className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-bold shadow-sm"
+                                  >
+                                    Menuju Toko
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => setShowOrderItemsDetail({ orderId: task.orders[0].id, outletName: task.outlet?.name })}
+                                    className="flex-1 py-2 bg-white border border-orange-200 text-orange-600 rounded-lg text-sm font-bold"
+                                  >
+                                    Ambil Pesanan
+                                  </button>
+                                )}
+                                {task.orders.length > 1 && task.orders.every(o => o.status === "going-to-store") && (
+                                  <button
+                                    onClick={async () => {
+                                      setActionLoading(true);
+                                      try {
+                                        for (const o of task.orders) {
+                                          await updateOrderStatus(o.id, "picked-up", driverId);
+                                        }
+                                        toast.success("Semua pesanan di kedai ini diambil!");
+                                      } catch { toast.error("Gagal update"); }
+                                      finally { setActionLoading(false); }
+                                    }}
+                                    className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-bold"
+                                  >
+                                    Ambil Semua
+                                  </button>
+                                )}
+                                {task.orders.length === 1 && task.orders[0].status === "going-to-store" && (
+                                  <button
+                                    onClick={() => handleUpdateStatus(task.orders[0].id, "picked-up")}
+                                    className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-bold"
+                                  >
+                                    Sudah Ambil
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  {(() => {
-                    const outlet = outlets.find(o => o.id === activeOrder.outlet_id);
-                    return (
-                      <>
-                        <a
-                          href={`https://www.google.com/maps?q=${outlet?.latitude},${outlet?.longitude}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-bold shadow-md shadow-blue-100"
-                        >
-                          <MapPin className="w-5 h-5" />
-                          Maps Kedai
-                        </a>
-                        {activeOrder.customer_latitude && (
-                          <a
-                            href={`https://www.google.com/maps?q=${activeOrder.customer_latitude},${activeOrder.customer_longitude}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-2 py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all font-bold shadow-md shadow-green-100"
-                          >
-                            <Navigation className="w-5 h-5" />
-                            Maps Customer
-                          </a>
-                        )}
-                      </>
-                    );
+                        );
+                      } else {
+                        const order = task.order;
+                        return (
+                          <div key={`delivery-${order.id}`} className="relative pl-10">
+                            <div className={`absolute left-0 top-0 w-10 h-10 rounded-full flex items-center justify-center z-10 ${
+                              task.status === 'ready' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-400'
+                            }`}>
+                              <User className="w-5 h-5" />
+                            </div>
+                            <div className="bg-blue-50/50 rounded-xl p-4 border border-blue-100">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <h3 className="font-bold text-gray-900">{order.customer_name}</h3>
+                                  <p className="text-xs text-gray-600 font-medium">{order.customer_village}</p>
+                                  <p className="text-[10px] text-gray-500 mt-1 line-clamp-1 italic">"{order.address}"</p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <a 
+                                    href={`https://wa.me/${normalizePhoneForWhatsApp(order.customer_phone)}`}
+                                    target="_blank" rel="noopener noreferrer"
+                                    className="p-2 bg-white rounded-lg shadow-sm text-green-600"
+                                  >
+                                    <MessageCircle className="w-4 h-4" />
+                                  </a>
+                                  <a 
+                                    href={`https://www.google.com/maps?q=${order.customer_latitude},${order.customer_longitude}`}
+                                    target="_blank" rel="noopener noreferrer"
+                                    className="p-2 bg-white rounded-lg shadow-sm text-blue-600"
+                                  >
+                                    <Navigation className="w-4 h-4" />
+                                  </a>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center mb-3 text-xs">
+                                <span className="font-bold text-blue-700">Total: {formatCurrency(getFinance(order).total)}</span>
+                                <span className={`px-2 py-0.5 rounded uppercase text-[9px] font-black ${
+                                  order.payment_method === "cod" ? 'bg-yellow-200 text-yellow-800' : 'bg-green-200 text-green-800'
+                                }`}>
+                                  {order.payment_method === "cod" ? "Tagih COD" : "Lunas (Transfer)"}
+                                </span>
+                              </div>
+                              <div className="flex gap-2">
+                                {order.status === "picked-up" ? (
+                                  <button
+                                    onClick={() => handleUpdateStatus(order.id, "on-delivery")}
+                                    disabled={actionLoading}
+                                    className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm"
+                                  >
+                                    Mulai Kirim
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => setConfirmAction({
+                                      title: "Selesaikan Order",
+                                      description: `Konfirmasi pengantaran selesai ke ${order.customer_name}?`,
+                                      onConfirm: () => handleUpdateStatus(order.id, "completed")
+                                    })}
+                                    disabled={actionLoading}
+                                    className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-bold shadow-md shadow-green-100"
+                                  >
+                                    Selesai
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                    });
                   })()}
                 </div>
-
-                {/* Lihat Pesanan Button in Active Order */}
-                <button
-                  onClick={() => setShowOrderItemsDetail({ orderId: activeOrder.id, outletName: activeOrder.outlet_name })}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors font-medium"
-                >
-                  <ShoppingBag className="w-5 h-5" />
-                  <span>Lihat Detail Pesanan</span>
-                </button>
-              </div>
-
-              {/* Progress Steps */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-2">
-                  {[
-                    { key: "processing", label: "Diproses", icon: "📋" },
-                    { key: "going-to-store", label: "Menuju Toko", icon: "🏪" },
-                    { key: "picked-up", label: "Pickup", icon: "📦" },
-                    { key: "on-delivery", label: "OTW", icon: "🚗" },
-                    { key: "completed", label: "Selesai", icon: "✅" },
-                  ].map((step, idx) => {
-                    const steps = ["processing", "going-to-store", "picked-up", "on-delivery", "completed"];
-                    const currentIdx = steps.indexOf(activeOrder.status);
-                    const isCompleted = idx < currentIdx;
-                    const isCurrent = idx === currentIdx;
-                    return (
-                      <div key={step.key} className="flex flex-col items-center flex-1">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
-                          isCompleted ? "bg-green-500" : isCurrent ? "bg-orange-500 ring-4 ring-orange-100" : "bg-gray-200"
-                        }`}>
-                          {isCompleted ? "✓" : step.icon}
-                        </div>
-                        <div className={`text-xs mt-1 text-center font-medium ${
-                          isCompleted ? "text-green-600" : isCurrent ? "text-orange-600" : "text-gray-400"
-                        }`}>
-                          {step.label}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="relative h-1 bg-gray-200 rounded-full mt-2">
-                  {(() => {
-                    const steps = ["processing", "going-to-store", "picked-up", "on-delivery", "completed"];
-                    const currentIdx = steps.indexOf(activeOrder.status);
-                    const pct = currentIdx >= 0 ? (currentIdx / (steps.length - 1)) * 100 : 0;
-                    return <div className="absolute inset-y-0 left-0 bg-orange-500 rounded-full transition-all" style={{ width: `${pct}%` }} />;
-                  })()}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="space-y-3">
-                {activeOrder.status === "processing" && (
-                  <button
-                    onClick={() => setConfirmAction({
-                      title: "Menuju Toko",
-                      description: "Konfirmasi bahwa Anda akan menuju ke toko pengambilan?",
-                      onConfirm: handleGoingToStore,
-                    })}
-                    disabled={actionLoading}
-                    className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {actionLoading && <Loader2 className="w-5 h-5 animate-spin" />}
-                    Menuju Toko
-                  </button>
-                )}
-                {activeOrder.status === "going-to-store" && (
-                  <button
-                    onClick={() => setConfirmAction({
-                      title: "Ambil Pesanan",
-                      description: "Konfirmasi bahwa Anda akan mengambil pesanan dari toko?",
-                      onConfirm: handlePickup,
-                    })}
-                    disabled={actionLoading}
-                    className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {actionLoading && <Loader2 className="w-5 h-5 animate-spin" />}
-                    Ambil Pesanan
-                  </button>
-                )}
-                {activeOrder.status === "picked-up" && (
-                  <button
-                    onClick={() => setConfirmAction({
-                      title: "Mulai Pengiriman",
-                      description: "Konfirmasi bahwa Anda akan memulai pengiriman ke customer?",
-                      onConfirm: handleDeliver,
-                    })}
-                    disabled={actionLoading}
-                    className="w-full py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {actionLoading && <Loader2 className="w-5 h-5 animate-spin" />}
-                    Mulai Pengiriman
-                  </button>
-                )}
-                {activeOrder.status === "on-delivery" && (
-                  <button
-                    onClick={() => setConfirmAction({
-                      title: "Selesaikan Pengiriman",
-                      description: "Konfirmasi bahwa Anda telah menyelesaikan pengiriman? Setoran otomatis akan dipotong dari saldo.",
-                      onConfirm: handleComplete,
-                    })}
-                    disabled={actionLoading}
-                    className="w-full py-4 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {actionLoading && <Loader2 className="w-5 h-5 animate-spin" />}
-                    Selesaikan Pengiriman
-                  </button>
-                )}
-
-                {(() => {
-                  const phone = normalizePhoneForWhatsApp(activeOrder.customer_phone);
-                  return phone ? (
-                    <a
-                      href={`https://wa.me/${phone}?text=${encodeURIComponent(
-                        `Halo ${activeOrder.customer_name}, saya driver Anda.\n\nPesanan: #${activeOrder.id.slice(0, 8)}\nTujuan: ${activeOrder.customer_village}\n\nTerima kasih!`
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"
-                    >
-                      <MessageCircle className="w-5 h-5" />
-                      WhatsApp Customer
-                    </a>
-                  ) : null;
-                })()}
               </div>
             </div>
-
+            
             <button
-              onClick={() => setActiveOrder(null)}
-              className="w-full py-3 text-gray-600 hover:bg-white rounded-lg transition-colors"
+              onClick={() => setActiveTab('orders')}
+              className="w-full py-4 bg-white text-gray-600 font-bold rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
             >
-              Kembali ke Daftar Order
+              <Package className="w-5 h-5" />
+              Lihat Order Masuk Lainnya
             </button>
           </div>
         )}

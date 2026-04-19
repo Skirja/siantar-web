@@ -197,7 +197,7 @@ export function Checkout() {
         payment_provider: paymentProvider,
         unique_payment_code: uniquePaymentCode,
         final_payment_amount: finalPaymentAmount,
-        payment_status: "pending",
+        payment_status: paymentMethod === "cod" ? "pending" : "awaiting_admin_confirmation",
         status: "pending",
         is_manual_order: false,
         is_delivery_service: false,

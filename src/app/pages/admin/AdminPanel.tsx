@@ -97,6 +97,8 @@ export function AdminPanel() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "orders" | "drivers" | "stores" | "finance" | "informasi" | "keuangan-driver" | "pengaturan">("dashboard");
   const [dateFilter, setDateFilter] = useState<"today" | "yesterday" | "all" | "custom">("today");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [villageFilter, setVillageFilter] = useState<string>("all");
+  const [outletFilter, setOutletFilter] = useState<string>("all");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
 
@@ -105,7 +107,13 @@ export function AdminPanel() {
       // 1. Status Filter
       if (statusFilter !== "all" && order.status !== statusFilter) return false;
 
-      // 2. Date Filter
+      // 2. Village Filter
+      if (villageFilter !== "all" && order.customer_village !== villageFilter) return false;
+
+      // 3. Outlet Filter
+      if (outletFilter !== "all" && order.outlet_id !== outletFilter) return false;
+
+      // 4. Date Filter
       const orderDate = new Date(order.created_at);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -690,7 +698,7 @@ export function AdminPanel() {
 
               {/* Filter Section */}
               <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                   {/* Date Filter */}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Filter Tanggal</label>
@@ -708,30 +716,6 @@ export function AdminPanel() {
                       <Calendar className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     </div>
                   </div>
-
-                  {/* Custom Date Inputs */}
-                  {dateFilter === "custom" && (
-                    <>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Mulai</label>
-                        <input
-                          type="date"
-                          value={customStartDate}
-                          onChange={(e) => setCustomStartDate(e.target.value)}
-                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Sampai</label>
-                        <input
-                          type="date"
-                          value={customEndDate}
-                          onChange={(e) => setCustomEndDate(e.target.value)}
-                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                      </div>
-                    </>
-                  )}
 
                   {/* Status Filter */}
                   <div>
@@ -756,8 +740,62 @@ export function AdminPanel() {
                     </div>
                   </div>
 
+                  {/* Village Filter */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Filter Desa</label>
+                    <div className="relative">
+                      <select
+                        value={villageFilter}
+                        onChange={(e) => setVillageFilter(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 appearance-none"
+                      >
+                        <option value="all">Semua Desa</option>
+                        {VILLAGE_GROUPS.map(v => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                      <MapPin className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+
+                  {/* Outlet Filter */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Filter Outlet</label>
+                    <div className="relative">
+                      <select
+                        value={outletFilter}
+                        onChange={(e) => setOutletFilter(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 appearance-none"
+                      >
+                        <option value="all">Semua Outlet</option>
+                        {outlets.map(o => (
+                          <option key={o.id} value={o.id}>{o.name}</option>
+                        ))}
+                      </select>
+                      <Store className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+
+                  {/* Custom Date Inputs (Conditional) */}
+                  {dateFilter === "custom" && (
+                    <div className="flex gap-2">
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="w-full px-2 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="w-full px-2 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                  )}
+
                   {/* Stats Summary */}
-                  <div className="flex items-end pb-1">
+                  <div className={`flex items-end pb-1 ${dateFilter !== "custom" ? "lg:col-span-2" : ""}`}>
                     <div className="text-xs text-gray-500 bg-orange-50 px-3 py-2 rounded-lg border border-orange-100 w-full text-center">
                       Ditemukan <span className="font-bold text-orange-600">{filteredOrders.length}</span> pesanan
                     </div>
@@ -792,6 +830,27 @@ export function AdminPanel() {
                               {statusLabels[order.status]}
                             </span>
                           </div>
+                          
+                          {/* Grouping Indicator */}
+                          {(order.status === "pending" || order.status === "awaiting_admin_confirmation") && (() => {
+                            const sameVillageOrders = orders.filter(o => 
+                              o.id !== order.id && 
+                              o.customer_village === order.customer_village && 
+                              (o.status === "pending" || o.status === "processing" || o.status === "driver_assigned" || o.status === "awaiting_admin_confirmation")
+                            );
+                            if (sameVillageOrders.length > 0) {
+                              return (
+                                <div className="mb-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg flex items-center gap-2 animate-pulse">
+                                  <span className="text-lg">💡</span>
+                                  <span className="text-xs font-bold text-orange-700">
+                                    {sameVillageOrders.length} pesanan lain di {order.customer_village} - Bisa digabung!
+                                  </span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+
                           <div className="space-y-2 text-sm">
                             <div className="flex items-center gap-2 text-gray-600">
                               <User className="w-4 h-4" />
@@ -850,14 +909,46 @@ export function AdminPanel() {
                                   <span className={`px-2 py-0.5 rounded text-xs ${
                                     order.payment_status === "confirmed" ? "bg-green-100 text-green-700" :
                                     order.payment_status === "waiting_confirmation" ? "bg-yellow-100 text-yellow-700" :
+                                    order.payment_status === "awaiting_admin_confirmation" ? "bg-orange-100 text-orange-700 font-bold animate-pulse" :
                                     order.payment_status === "rejected" ? "bg-red-100 text-red-700" :
                                     "bg-gray-100 text-gray-700"
                                   }`}>
                                     {order.payment_status === "confirmed" ? "Terkonfirmasi" :
-                                     order.payment_status === "waiting_confirmation" ? "Menunggu Konfirmasi" :
+                                     order.payment_status === "waiting_confirmation" ? "Menunggu Konfirmasi Bukti" :
+                                     order.payment_status === "awaiting_admin_confirmation" ? "Menunggu Konfirmasi Admin" :
                                      order.payment_status === "rejected" ? "Ditolak" : "Menunggu"}
                                   </span>
                                 </div>
+                                {order.payment_status === "awaiting_admin_confirmation" && (
+                                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mt-2">
+                                    <p className="text-[11px] text-orange-800 font-medium mb-2 italic">
+                                      ⚠️ Pesanan Transfer: Konfirmasi ketersediaan driver & kedai dulu sebelum customer bayar.
+                                    </p>
+                                    <div className="flex gap-2">
+                                      <button 
+                                        onClick={async () => {
+                                          if (confirm("Konfirmasi pesanan ini? Customer akan melihat instruksi pembayaran.")) {
+                                            try {
+                                              await updateOrder(order.id, { payment_status: "pending" });
+                                              toast.success("Pesanan dikonfirmasi. Customer sekarang bisa bayar.");
+                                            } catch (err: any) {
+                                              toast.error(err.message);
+                                            }
+                                          }
+                                        }} 
+                                        className="flex-1 px-3 py-2 bg-orange-500 text-white rounded text-xs font-bold hover:bg-orange-600 shadow-sm"
+                                      >
+                                        ✅ Konfirmasi
+                                      </button>
+                                      <button 
+                                        onClick={() => setShowRejectOrderConfirm(order.id)} 
+                                        className="flex-1 px-3 py-2 bg-red-100 text-red-600 rounded text-xs font-bold hover:bg-red-200"
+                                      >
+                                        ❌ Tolak
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                                 {order.payment_proof_url && (
                                   <div className="mt-2">
                                     <div className="text-gray-700 font-medium mb-1">Bukti Transfer:</div>
@@ -943,7 +1034,15 @@ export function AdminPanel() {
                                 Hubungi Customer (WA)
                               </a>
 
-                              {assigningOrderId === order.id ? (
+                              {order.payment_status === "awaiting_admin_confirmation" ? (
+                                <div className="text-center py-2 bg-gray-50 rounded-lg text-gray-400 text-xs italic border border-dashed border-gray-200">
+                                  Konfirmasi Pesanan Dulu
+                                </div>
+                              ) : (order.payment_method === "transfer" && order.payment_status !== "confirmed") ? (
+                                <div className="text-center py-2 bg-gray-50 rounded-lg text-gray-500 text-xs italic border border-gray-200">
+                                  Tunggu Pembayaran Lunas
+                                </div>
+                              ) : assigningOrderId === order.id ? (
                                 <div className="bg-white border-2 border-orange-500 rounded-lg p-3">
                                   <div className="text-sm font-medium text-gray-900 mb-2">Pilih Driver Terdekat:</div>
                                   <div className="space-y-2">
@@ -962,7 +1061,21 @@ export function AdminPanel() {
                                               Number(orderOutlet.longitude)
                                             );
                                           }
-                                          return { ...driver, distToOutlet, isOnline };
+                                          
+                                          // Multi-order logic: check driver's active orders
+                                          const activeOrders = orders.filter(o => 
+                                            o.driver_id === driver.id && 
+                                            ["driver_assigned", "processing", "going-to-store", "picked-up", "on-delivery"].includes(o.status)
+                                          );
+                                          
+                                          // Compatibility check: same village or nearby outlet
+                                          const isCompatible = activeOrders.length === 0 || activeOrders.some(ao => {
+                                            const sameVillage = ao.customer_village === order.customer_village;
+                                            const nearbyOutlet = ao.outlet_id === order.outlet_id;
+                                            return sameVillage || nearbyOutlet;
+                                          });
+
+                                          return { ...driver, distToOutlet, isOnline, activeOrdersCount: activeOrders.length, isCompatible };
                                         })
                                         .sort((a, b) => {
                                           if (a.isOnline && !b.isOnline) return -1;
@@ -976,7 +1089,11 @@ export function AdminPanel() {
                                           new Date(o.created_at).toDateString() === new Date().toDateString() &&
                                           o.status === 'completed'
                                         ).length;
-                                        const canAssign = driver.isOnline;
+                                        
+                                        const canAssign = driver.isOnline && driver.activeOrdersCount < 2 && driver.isCompatible;
+                                        const errorReason = !driver.isOnline ? "Driver offline" : 
+                                                           driver.activeOrdersCount >= 2 ? "Maks 2 order aktif" :
+                                                           !driver.isCompatible ? "Beda arah/desa" : null;
 
                                         return (
                                           <div key={driver.id} className="space-y-1">
@@ -994,7 +1111,8 @@ export function AdminPanel() {
                                                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${driver.isOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
                                                   <span className="font-medium">
                                                     {driver.name}
-                                                    {idx === 0 && driver.isOnline && <span className="ml-2 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full uppercase">Terdekat</span>}
+                                                    {driver.activeOrdersCount > 0 && <span className="ml-1 text-[9px] bg-blue-100 text-blue-700 px-1 rounded">{driver.activeOrdersCount} aktif</span>}
+                                                    {idx === 0 && driver.isOnline && canAssign && <span className="ml-2 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full uppercase">Terdekat</span>}
                                                   </span>
                                                 </div>
                                                 <div className="text-[10px] text-gray-500 flex gap-1 items-center">
@@ -1005,9 +1123,14 @@ export function AdminPanel() {
                                                   <span>{todayDriverOrders}x hari ini</span>
                                                 </div>
                                               </div>
-                                              {!canAssign && (
+                                              {errorReason && (
                                                 <div className="text-[10px] text-red-500 mt-1">
-                                                  ⚠ Driver offline — tidak bisa di-assign
+                                                  ⚠ {errorReason}
+                                                </div>
+                                              )}
+                                              {driver.activeOrdersCount === 1 && driver.isCompatible && (
+                                                <div className="text-[9px] text-green-600 mt-1 font-bold">
+                                                  ✨ Searah/Sedesa - Bisa digabung!
                                                 </div>
                                               )}
                                             </button>

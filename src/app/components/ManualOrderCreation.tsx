@@ -231,7 +231,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
         payment_provider: paymentProvider ?? null,
         unique_payment_code: uniquePaymentCode ?? null,
         final_payment_amount: uniquePaymentCode ? finalPaymentAmount : null,
-        payment_status: paymentMethod === "cod" ? null : "pending",
+        payment_status: paymentMethod === "cod" ? "pending" : "awaiting_admin_confirmation",
         status: "pending",
         is_manual_order: true,
         is_delivery_service: true,
