@@ -624,6 +624,26 @@ export function DriverPanel() {
                                   hour: '2-digit', minute: '2-digit'
                                 })}
                               </div>
+                              <div className="flex gap-2 mt-2">
+                                <a 
+                                  href={`https://wa.me/${normalizePhoneForWhatsApp(order.customer_phone)}`}
+                                  target="_blank" rel="noopener noreferrer"
+                                  className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
+                                  title="WhatsApp Customer"
+                                >
+                                  <MessageCircle className="w-3.5 h-3.5" />
+                                </a>
+                                {order.customer_latitude && (
+                                  <a 
+                                    href={`https://www.google.com/maps?q=${order.customer_latitude},${order.customer_longitude}`}
+                                    target="_blank" rel="noopener noreferrer"
+                                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                                    title="Maps Customer"
+                                  >
+                                    <MapPin className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                              </div>
                             </div>
                             <div className="text-right ml-4">
                               <div className="text-green-600 font-semibold text-sm">

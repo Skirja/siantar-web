@@ -335,6 +335,11 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
                             Varian: {item.selected_variant}
                           </div>
                         )}
+                        {item.note && (
+                          <div style={{ fontSize: '8px', color: '#ca8a04', paddingLeft: '4px', fontStyle: 'italic' }}>
+                            Note: {item.note}
+                          </div>
+                        )}
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px' }}>
                           <span style={{ paddingLeft: '4px' }}>
                             {formatCurrency(displayPrice)} x{item.quantity}

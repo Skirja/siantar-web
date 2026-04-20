@@ -108,7 +108,7 @@ export function PaymentInstruction() {
 
   const handleWhatsApp = () => {
     const message = `Halo, saya ingin konfirmasi pembayaran:\n\nOrder ID: ${order.id}\nNama: ${order.customer_name}\nJumlah Transfer: ${formatCurrency(order.final_payment_amount || order.total)}\n\nTerima kasih!`;
-    const phoneNumber = "6281234567890";
+    const phoneNumber = "6285134830507";
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, "_blank");
   };

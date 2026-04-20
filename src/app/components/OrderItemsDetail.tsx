@@ -69,6 +69,11 @@ function ItemsList({
                   Extra: {item.selected_extras.join(", ")}
                 </div>
               )}
+              {item.note && (
+                <div className="text-[10px] text-orange-700 bg-orange-50 px-2 py-0.5 rounded border border-orange-100 mt-1 italic">
+                  Note: {item.note}
+                </div>
+              )}
               <div className="text-xs text-gray-500 mt-1">
                 {formatCurrency(item.price)} × {item.quantity}
               </div>
