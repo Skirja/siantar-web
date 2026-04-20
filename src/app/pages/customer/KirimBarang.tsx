@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useTitle } from "../../hooks/useTitle";
 import {
@@ -43,7 +43,12 @@ export function KirimBarang() {
   useTitle("Kirim Barang");
 
   const navigate = useNavigate();
-  const { addOrder, feeSettings, outlets, orders } = useData();
+  const { addOrder, feeSettings, outlets, orders, refreshFeeSettings } = useData();
+
+  // Fallback: Refresh fee settings on mount
+  useEffect(() => {
+    refreshFeeSettings();
+  }, [refreshFeeSettings]);
 
   // Sender (Pengirim) Details
   const [senderName, setSenderName] = useState("");

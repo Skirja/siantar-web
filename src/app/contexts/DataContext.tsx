@@ -256,6 +256,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
     
     const appSettingsChannel = subscribeToTable('app_settings', () => refreshAppSettings());
+    const feeSettingsChannel = subscribeToTable('fee_settings', () => refreshFeeSettings());
 
     // Profiles: incremental update for driver balance/name changes
     const profilesChannel = subscribeToTable('profiles', (payload) => {
@@ -286,6 +287,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       unsubscribe(outletsChannel);
       unsubscribe(profilesChannel);
       unsubscribe(appSettingsChannel);
+      unsubscribe(feeSettingsChannel);
       if (pollingInterval) clearInterval(pollingInterval);
     };
   }, []);

@@ -30,7 +30,7 @@ export function Checkout() {
   useTitle("Checkout");
 
   const { items, notes, subtotal: cartSubtotal, clearCart } = useCart();
-  const { addOrder, outlets, feeSettings, orders } = useData();
+  const { addOrder, outlets, feeSettings, orders, refreshFeeSettings } = useData();
   const { customerPhone, username: customerName } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState("");
@@ -50,6 +50,11 @@ export function Checkout() {
     if (customerName && !name) setName(customerName);
     if (customerPhone && !phone) setPhone(customerPhone);
   }, [customerName, customerPhone]);
+
+  // Fallback: Refresh fee settings on mount to ensure accuracy
+  useEffect(() => {
+    refreshFeeSettings();
+  }, [refreshFeeSettings]);
 
   // Redirect if cart is empty
   useEffect(() => {
