@@ -61,6 +61,8 @@ Dokumen ini mencatat langkah-langkah implementasi fitur dan perbaikan bug untuk 
 - [x] **Typecheck:** Berhasil (Lulus `tsc --noEmit`).
 - [x] **Linting:** Berhasil (Lulus `eslint`).
 - [x] **Logika Flow:** Diverifikasi manual untuk memastikan tidak ada data yang bocor atau status yang macet.
+- [x] **Bug Fix:** Memperbaiki tombol "Lihat Order Masuk Lainnya" di Driver Panel yang sebelumnya tidak berfungsi karena terkunci di tampilan rute aktif. Kini menggunakan sistem `activeTab` yang dinamis.
+- [x] **Update:** Meningkatkan waktu tunggu (countdown) pencarian driver dari 2 menit menjadi 6 menit untuk mengakomodasi proses transfer.
 
 **Dibuat oleh:** Gemini CLI
 **Tanggal:** 2024-05-20 (Waktu Sistem)

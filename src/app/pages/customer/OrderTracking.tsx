@@ -12,7 +12,7 @@ import { OrderItemsDetail } from "../../components/OrderItemsDetail";
 import { OrderRatingModal } from "../../components/OrderRatingModal";
 
 // Timeout duration before auto-cancel (seconds)
-const SEARCH_TIMEOUT_SECONDS = 120;
+const SEARCH_TIMEOUT_SECONDS = 360;
 
 const orderStatuses: Array<{ id: string; label: string; icon: typeof Clock; description: string }> = [
   { id: "pending", label: "Mencari Driver", icon: Clock, description: "Sedang mencarikan driver untuk Anda" },
@@ -36,6 +36,7 @@ export function OrderTracking() {
   const { customerPhone } = useAuth();
 
   const [previousStatus, setPreviousStatus] = useState<string | null>(null);
+  const [previousPaymentStatus, setPreviousPaymentStatus] = useState<string | null>(null);
   const [driverLocation, setDriverLocation] = useState(0);
   const [isOwner, setIsOwner] = useState<boolean | null>(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -160,7 +161,8 @@ export function OrderTracking() {
       }
     }
     setPreviousStatus(currentOrder.status);
-  }, [currentOrder?.status]);
+    setPreviousPaymentStatus(currentOrder.payment_status);
+  }, [currentOrder?.status, currentOrder?.payment_status]);
 
   // ─── Driver location animation ───────────────────────────────────────────────
   useEffect(() => {
@@ -317,6 +319,61 @@ export function OrderTracking() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Payment Status for Transfer */}
+          {currentOrder.payment_method === "transfer" && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={`mb-5 p-4 rounded-2xl border-2 shadow-sm flex flex-col items-center gap-3 ${
+                currentOrder.payment_status === "awaiting_admin_confirmation"
+                  ? "bg-orange-50 border-orange-200"
+                  : "bg-blue-50 border-blue-200"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-xl ${
+                  currentOrder.payment_status === "awaiting_admin_confirmation" ? "bg-orange-500" : "bg-blue-600"
+                }`}>
+                  <CreditCard className="w-5 h-5 text-white" />
+                </div>
+                <div className="text-left">
+                  <p className={`text-[10px] font-black uppercase tracking-widest ${
+                    currentOrder.payment_status === "awaiting_admin_confirmation" ? "text-orange-800" : "text-blue-800"
+                  }`}>
+                    Status Pembayaran
+                  </p>
+                  <p className="text-sm font-bold text-gray-900 leading-tight">
+                    {currentOrder.payment_status === "awaiting_admin_confirmation"
+                      ? "Menunggu Konfirmasi Admin"
+                      : "Siap Bayar (Silakan Transfer)"}
+                  </p>
+                </div>
+              </div>
+
+              {currentOrder.payment_status === "awaiting_admin_confirmation" ? (
+                <div className="w-full bg-white/50 rounded-xl p-3 text-xs text-orange-700 italic border border-orange-100">
+                  Admin sedang memeriksa pesanan Anda. Mohon jangan transfer dulu sebelum dikonfirmasi.
+                </div>
+              ) : currentOrder.payment_status === "confirmed" ? (
+                <div className="w-full py-3 bg-green-50 text-green-700 rounded-xl font-bold text-sm border border-green-200 flex items-center justify-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Pembayaran Terkonfirmasi
+                </div>
+              ) : (
+                <button
+                  onClick={() => navigate(`/home/payment/${currentOrder.id}`)}
+                  className="w-full py-4 bg-blue-600 text-white rounded-xl font-black text-base shadow-lg hover:bg-blue-700 transition-all flex flex-col items-center justify-center animate-bounce"
+                >
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <CreditCard className="w-5 h-5" />
+                    <span>BAYAR SEKARANG</span>
+                  </div>
+                  <span className="text-[10px] opacity-80 font-medium">KLIK DI SINI UNTUK TRANSFER</span>
+                </button>
+              )}
+            </motion.div>
+          )}
 
           {/* Countdown display */}
           <div className="bg-orange-50 rounded-2xl p-5 border-2 border-orange-100 mb-5">
@@ -476,8 +533,10 @@ export function OrderTracking() {
                   <div className="text-left">
                     <div className="font-bold text-lg mb-1">Instruksi Pembayaran</div>
                     <div className="text-blue-100 text-sm">
-                      {currentOrder.payment_status === "waiting_confirmation"
-                        ? "Menunggu konfirmasi admin"
+                      {currentOrder.payment_status === "awaiting_admin_confirmation"
+                        ? "Menunggu konfirmasi admin untuk siap transfer"
+                        : currentOrder.payment_status === "waiting_confirmation"
+                        ? "Menunggu konfirmasi bukti bayar"
                         : currentOrder.payment_status === "confirmed"
                         ? "Pembayaran terkonfirmasi"
                         : "Lihat detail transfer & upload bukti"}
@@ -485,7 +544,11 @@ export function OrderTracking() {
                   </div>
                 </div>
                 <div className="text-white">
-                  <AlertCircle className="w-6 h-6" />
+                  {currentOrder.payment_status === "awaiting_admin_confirmation" ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <AlertCircle className="w-6 h-6" />
+                  )}
                 </div>
               </div>
             </button>

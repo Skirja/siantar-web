@@ -63,7 +63,17 @@ export function DriverPanel() {
 
   const [actionLoading, setActionLoading] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState<'orders' | 'history'>('orders');
+  type DriverTab = 'orders' | 'history' | 'route';
+  const [currentTab, setCurrentTab] = useState<DriverTab>('orders');
+
+  // Auto-switch to route tab when active orders appear
+  useEffect(() => {
+    if (myActiveOrders.length > 0) {
+      setCurrentTab('route');
+    } else if (currentTab === 'route') {
+      setCurrentTab('orders');
+    }
+  }, [myActiveOrders.length]);
   const [onlineLoading, setOnlineLoading] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
@@ -250,8 +260,7 @@ export function DriverPanel() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* ───── No Active Order View ───── */}
-        {myActiveOrders.length === 0 ? (
+        {currentTab !== 'route' ? (
           <div>
             {/* Stats Row */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -331,38 +340,47 @@ export function DriverPanel() {
 
             {/* Tab Navigation */}
             <div className="flex mb-6 bg-white rounded-xl shadow-sm overflow-hidden">
+              {myActiveOrders.length > 0 && (
+                <button
+                  onClick={() => setCurrentTab('route')}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 font-medium transition-colors text-orange-600 hover:bg-orange-50 border-r border-orange-100"
+                >
+                  <Navigation className="w-4 h-4" />
+                  Rute Aktif
+                </button>
+              )}
               <button
-                onClick={() => setActiveTab('orders')}
+                onClick={() => setCurrentTab('orders')}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-medium transition-colors ${
-                  activeTab === 'orders' ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-50'
+                  currentTab === 'orders' ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 <Package className="w-4 h-4" />
                 Order Tersedia
                 {myOrders.length > 0 && (
                   <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-                    activeTab === 'orders' ? 'bg-white/30 text-white' : 'bg-orange-100 text-orange-700'
+                    currentTab === 'orders' ? 'bg-white/30 text-white' : 'bg-orange-100 text-orange-700'
                   }`}>{myOrders.length}</span>
                 )}
               </button>
               <button
-                onClick={() => setActiveTab('history')}
+                onClick={() => setCurrentTab('history')}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-medium transition-colors ${
-                  activeTab === 'history' ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-50'
+                  currentTab === 'history' ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 <History className="w-4 h-4" />
                 Histori Lengkap
                 {completedOrders.length > 0 && (
                   <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-                    activeTab === 'history' ? 'bg-white/30 text-white' : 'bg-gray-100 text-gray-600'
+                    currentTab === 'history' ? 'bg-white/30 text-white' : 'bg-gray-100 text-gray-600'
                   }`}>{completedOrders.length}</span>
                 )}
               </button>
             </div>
 
             {/* Orders Tab */}
-            {activeTab === 'orders' && (
+            {currentTab === 'orders' && (
               <div>
                 {myOrders.length === 0 ? (
                   <div className="bg-white rounded-xl shadow-sm p-12 text-center">
@@ -570,7 +588,7 @@ export function DriverPanel() {
             )}
 
             {/* History Tab */}
-            {activeTab === 'history' && (
+            {currentTab === 'history' && (
               <div>
                 <h2 className="text-xl font-bold text-gray-900 mb-4">
                   Histori Lengkap ({completedOrders.length})
@@ -711,7 +729,16 @@ export function DriverPanel() {
                               <div className="flex gap-2">
                                 {task.orders[0].status === "processing" ? (
                                   <button
-                                    onClick={() => handleUpdateStatus(task.orders[0].id, "going-to-store")}
+                                    onClick={async () => {
+                                      setActionLoading(true);
+                                      try {
+                                        for (const o of task.orders) {
+                                          await updateOrderStatus(o.id, "going-to-store", driverId);
+                                        }
+                                        toast.success("Status: Menuju ke kedai");
+                                      } catch { toast.error("Gagal update status"); }
+                                      finally { setActionLoading(false); }
+                                    }}
                                     disabled={actionLoading}
                                     className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-bold shadow-sm"
                                   >
@@ -829,7 +856,7 @@ export function DriverPanel() {
             </div>
             
             <button
-              onClick={() => setActiveTab('orders')}
+              onClick={() => setCurrentTab('orders')}
               className="w-full py-4 bg-white text-gray-600 font-bold rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
             >
               <Package className="w-5 h-5" />
