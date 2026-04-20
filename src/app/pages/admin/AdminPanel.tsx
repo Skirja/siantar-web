@@ -1043,18 +1043,6 @@ export function AdminPanel() {
                                 <div className="text-center py-2 bg-gray-50 rounded-lg text-gray-400 text-xs italic border border-dashed border-gray-200">
                                   Konfirmasi Pesanan Dulu
                                 </div>
-                              ) : (order.payment_method === "transfer" && order.payment_status !== "confirmed" && !order.payment_proof_url) ? (
-                                <div className="space-y-2">
-                                  <div className="text-center py-2 bg-orange-50 rounded-lg text-orange-600 text-[10px] font-bold border border-orange-200 animate-pulse">
-                                    Menunggu Transfer / Bukti WA
-                                  </div>
-                                  <button
-                                    onClick={() => setAssigningOrderId(order.id)}
-                                    className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm"
-                                  >
-                                    Assign Driver (Paksa)
-                                  </button>
-                                </div>
                               ) : assigningOrderId === order.id ? (
                                 <div className="bg-white border-2 border-orange-500 rounded-lg p-3">
                                   <div className="text-sm font-medium text-gray-900 mb-2">Pilih Driver Terdekat:</div>
@@ -1167,6 +1155,18 @@ export function AdminPanel() {
                                       Batal
                                     </button>
                                   </div>
+                                </div>
+                              ) : (order.payment_method === "transfer" && order.payment_status !== "confirmed" && !order.payment_proof_url) ? (
+                                <div className="space-y-2">
+                                  <div className="text-center py-2 bg-orange-50 rounded-lg text-orange-600 text-[10px] font-bold border border-orange-200 animate-pulse">
+                                    Menunggu Transfer / Bukti WA
+                                  </div>
+                                  <button
+                                    onClick={() => setAssigningOrderId(order.id)}
+                                    className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm"
+                                  >
+                                    Assign Driver (Paksa)
+                                  </button>
                                 </div>
                               ) : (
                                 <button
