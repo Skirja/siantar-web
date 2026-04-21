@@ -461,6 +461,13 @@ export function InvoiceModal({ order, type, onClose }: InvoiceModalProps) {
             </div>
 
             {/* Footer Notes */}
+            {order.customer_note && (
+              <div style={{ marginBottom: '12px', padding: '6px', backgroundColor: '#fff9c4', border: '1px solid #fbc02d', borderRadius: '4px' }}>
+                <div style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '2px' }}>CATATAN PELANGGAN:</div>
+                <div style={{ fontSize: '10px' }}>{order.customer_note}</div>
+              </div>
+            )}
+
             <div style={{ fontSize: '9px', textAlign: 'center', marginBottom: '8px' }}>
               {type === "customer" ? (
                 <>

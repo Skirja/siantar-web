@@ -32,7 +32,7 @@ export function OrderTracking() {
 
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const { orders, drivers, refreshOrders, loadingOrders, orderRatings, updateOrder } = useData();
+  const { orders, drivers, refreshOrders, loadingOrders, orderRatings, updateOrderStatus } = useData();
   const { customerPhone } = useAuth();
 
   const [previousStatus, setPreviousStatus] = useState<string | null>(null);
@@ -86,11 +86,11 @@ export function OrderTracking() {
     return () => clearInterval(timer);
   }, [currentOrder?.status, currentOrder?.id]);
 
-  // Auto-cancel via updateOrder (direct update — no RPC permission issue)
+  // Auto-cancel via updateOrderStatus RPC (Security Definer avoids RLS issues)
   const handleAutoCancel = async () => {
     if (!currentOrder) return;
     try {
-      await updateOrder(currentOrder.id, { status: "cancelled" });
+      await updateOrderStatus(currentOrder.id, "cancelled");
       toast.error("Waktu habis", {
         description: "Maaf, saat ini driver tidak tersedia. Silakan coba beberapa saat lagi.",
       });

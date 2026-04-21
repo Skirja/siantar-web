@@ -867,11 +867,19 @@ export function AdminPanel() {
                                   {order.address}
                                 </div>
                                 {order.customer_note && (
-                                  <div className="mt-2 text-xs leading-relaxed text-orange-700 bg-orange-50 p-2 rounded-lg border border-orange-100">
-                                    <span className="font-bold">Catatan:</span> {order.customer_note}
+                                  <div className="mt-2 text-xs leading-relaxed text-orange-700 bg-orange-50 p-2 rounded-lg border border-orange-100 font-bold">
+                                    <span>Catatan Pelanggan:</span> {order.customer_note}
                                   </div>
                                 )}
-                                {order.customer_latitude && (
+                                <div className="mt-3 space-y-1">
+                                  <div className="font-bold text-gray-900 text-xs mb-2">Detail Pesanan:</div>
+                                  {((order as any).items || []).map((item: any, idx: number) => (
+                                    <div key={idx} className="text-xs text-gray-700">
+                                      • {item.name} x{item.quantity}
+                                      {item.note && <span className="text-orange-600 font-medium italic block pl-3">↳ {item.note}</span>}
+                                    </div>
+                                  ))}
+                                </div>                                {order.customer_latitude && (
                                   <div className="mt-2 flex items-center gap-2">
                                     <span className="text-[10px] font-mono bg-gray-100 px-2 py-1 rounded border border-gray-200">
                                       {order.customer_latitude.toFixed(6)}, {order.customer_longitude?.toFixed(6)}
@@ -1091,10 +1099,10 @@ export function AdminPanel() {
                                           o.status === 'completed'
                                         ).length;
                                         
-                                        const canAssign = driver.isOnline && driver.activeOrdersCount < 2 && driver.isCompatible;
-                                        const errorReason = !driver.isOnline ? "Driver offline" : 
-                                                           driver.activeOrdersCount >= 2 ? "Maks 2 order aktif" :
-                                                           !driver.isCompatible ? "Beda arah/desa" : null;
+                                        const canAssign = driver.isOnline;
+                                        const errorReason = !driver.isOnline ? "Driver offline" : null;
+                                        const warningReason = driver.activeOrdersCount >= 2 ? "Maks 2 order aktif" :
+                                                             !driver.isCompatible ? "Beda arah/desa" : null;
 
                                         return (
                                           <div key={driver.id} className="space-y-1">
@@ -1122,15 +1130,19 @@ export function AdminPanel() {
                                                   )}
                                                   <span>•</span>
                                                   <span>{todayDriverOrders}x hari ini</span>
-                                                </div>
-                                              </div>
-                                              {errorReason && (
-                                                <div className="text-[10px] text-red-500 mt-1">
+                                                  </div>
+                                                  </div>
+                                                  {warningReason && (
+                                                  <div className="text-[10px] text-orange-600 mt-1 font-medium italic">
+                                                  ⚠️ {warningReason} (Tetap bisa di-assign)
+                                                  </div>
+                                                  )}
+                                                  {errorReason && (
+                                                  <div className="text-[10px] text-red-500 mt-1">
                                                   ⚠ {errorReason}
-                                                </div>
-                                              )}
-                                              {driver.activeOrdersCount === 1 && driver.isCompatible && (
-                                                <div className="text-[9px] text-green-600 mt-1 font-bold">
+                                                  </div>
+                                                  )}
+                                                  {driver.activeOrdersCount === 1 && driver.isCompatible && (                                                <div className="text-[9px] text-green-600 mt-1 font-bold">
                                                   ✨ Searah/Sedesa - Bisa digabung!
                                                 </div>
                                               )}

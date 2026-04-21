@@ -12,7 +12,7 @@ export function PaymentInstruction() {
   const { orderId } = useParams<{ orderId: string }>();
 
   const navigate = useNavigate();
-  const { orders, updateOrder, paymentAccounts } = useData();
+  const { orders, updateOrder, updateOrderPayment, paymentAccounts } = useData();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const order = orders.find((o) => o.id === orderId);

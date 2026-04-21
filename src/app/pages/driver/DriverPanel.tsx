@@ -625,24 +625,43 @@ export function DriverPanel() {
                                 })}
                               </div>
                               <div className="flex gap-2 mt-2">
+                                {/* WhatsApp Customer */}
                                 <a 
                                   href={`https://wa.me/${normalizePhoneForWhatsApp(order.customer_phone)}`}
                                   target="_blank" rel="noopener noreferrer"
-                                  className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
+                                  className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors border border-green-100"
                                   title="WhatsApp Customer"
                                 >
                                   <MessageCircle className="w-3.5 h-3.5" />
                                 </a>
+                                {/* Maps Customer */}
                                 {order.customer_latitude && (
                                   <a 
                                     href={`https://www.google.com/maps?q=${order.customer_latitude},${order.customer_longitude}`}
                                     target="_blank" rel="noopener noreferrer"
-                                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors border border-blue-100"
                                     title="Maps Customer"
                                   >
                                     <MapPin className="w-3.5 h-3.5" />
                                   </a>
                                 )}
+                                {/* Maps Kedai */}
+                                {(() => {
+                                  const outlet = outlets.find(o => o.id === order.outlet_id);
+                                  if (outlet?.latitude) {
+                                    return (
+                                      <a 
+                                        href={`https://www.google.com/maps?q=${outlet.latitude},${outlet.longitude}`}
+                                        target="_blank" rel="noopener noreferrer"
+                                        className="p-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors border border-orange-100"
+                                        title="Maps Kedai"
+                                      >
+                                        <Store className="w-3.5 h-3.5" />
+                                      </a>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
                             </div>
                             <div className="text-right ml-4">
@@ -731,13 +750,26 @@ export function DriverPanel() {
                                   <h3 className="font-bold text-gray-900">{task.outlet?.name}</h3>
                                   <p className="text-xs text-gray-500">{task.outlet?.village}</p>
                                 </div>
-                                <a 
-                                  href={`https://www.google.com/maps?q=${task.outlet?.latitude},${task.outlet?.longitude}`}
-                                  target="_blank" rel="noopener noreferrer"
-                                  className="p-2 bg-white rounded-lg shadow-sm text-blue-600"
-                                >
-                                  <Navigation className="w-4 h-4" />
-                                </a>
+                                <div className="flex gap-2">
+                                  {/* Maps Kedai */}
+                                  <a 
+                                    href={`https://www.google.com/maps?q=${task.outlet?.latitude},${task.outlet?.longitude}`}
+                                    target="_blank" rel="noopener noreferrer"
+                                    className="p-2 bg-white rounded-lg shadow-sm text-blue-600 border border-blue-100"
+                                    title="Maps Kedai"
+                                  >
+                                    <Navigation className="w-4 h-4" />
+                                  </a>
+                                  {/* WhatsApp Customer (First Order in Group) */}
+                                  <a 
+                                    href={`https://wa.me/${normalizePhoneForWhatsApp(task.orders[0].customer_phone)}`}
+                                    target="_blank" rel="noopener noreferrer"
+                                    className="p-2 bg-white rounded-lg shadow-sm text-green-600 border border-green-100"
+                                    title="WhatsApp Customer"
+                                  >
+                                    <MessageCircle className="w-4 h-4" />
+                                  </a>
+                                </div>
                               </div>
                               <div className="flex flex-wrap gap-2 mb-4">
                                 {task.orders.map((o: any) => (
@@ -816,6 +848,19 @@ export function DriverPanel() {
                                   <h3 className="font-bold text-gray-900">{order.customer_name}</h3>
                                   <p className="text-xs text-gray-600 font-medium">{order.customer_village}</p>
                                   <p className="text-[10px] text-gray-500 mt-1 line-clamp-1 italic">"{order.address}"</p>
+                                  {order.customer_note && (
+                                    <div className="mt-2 text-[10px] bg-yellow-50 text-yellow-700 px-2 py-1 rounded border border-yellow-200 font-medium">
+                                      Catatan: {order.customer_note}
+                                    </div>
+                                  )}
+                                  <div className="mt-2 space-y-1">
+                                    {(order.items || []).map((item: any, idx: number) => (
+                                      <div key={idx} className="text-[10px] text-gray-600">
+                                        • {item.name} x{item.quantity}
+                                        {item.note && <span className="text-orange-600 italic"> (Note: {item.note})</span>}
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                                 <div className="flex gap-2">
                                   <a 

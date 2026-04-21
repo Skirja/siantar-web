@@ -802,6 +802,10 @@ export type Database = {
       }
       get_server_time: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
+      mark_notification_read: {
+        Args: { p_notification_id: string }
+        Returns: undefined
+      }
       reject_order: { Args: { p_order_id: string }; Returns: string }
       set_user_admin: { Args: { user_email: string }; Returns: undefined }
       toggle_driver_online: { Args: { p_driver_id: string }; Returns: boolean }

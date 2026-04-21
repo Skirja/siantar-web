@@ -143,7 +143,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const markDbNotificationAsRead = async (id: string) => {
-    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+    // Use RPC to bypass RLS for anonymous users
+    const { error } = await supabase.rpc("mark_notification_read", {
+      p_notification_id: id,
+    });
+    
+    if (error) {
+      console.error("Failed to mark notification as read:", error);
+      return;
+    }
+
     setDbNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
