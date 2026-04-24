@@ -12,7 +12,7 @@ export function Splash() {
   useEffect(() => {
     // Redirect to login after 2.5 seconds
     const timer = setTimeout(() => {
-      navigate("/login-customer");
+      navigate("/role-select");
     }, 2500);
 
     return () => clearTimeout(timer);
@@ -28,7 +28,7 @@ export function Splash() {
         className="flex flex-col items-center"
       >
         <Logo size="4xl" showText={false} className="mb-8" />
-        
+
         {/* Loading indicator */}
         <motion.div
           initial={{ opacity: 0 }}

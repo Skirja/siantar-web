@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router";
+import { useNavigate } from "react-router";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTitle } from "../../hooks/useTitle";
-import { Phone, Lock, AlertCircle, Truck, User } from "lucide-react";
+import { Lock, AlertCircle, User, ArrowLeft } from "lucide-react";
 import logoImg from "../../../assets/siantar-aja-logo.png";
 
 export function LoginDriver() {
@@ -34,6 +34,15 @@ export function LoginDriver() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+        {/* Back button */}
+        <button
+          onClick={() => navigate("/role-select")}
+          className="flex items-center gap-2 text-white/60 hover:text-white transition-colors mb-6 text-sm"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Kembali
+        </button>
+
         <div className="text-center mb-8 flex flex-col items-center">
           <img src={logoImg} alt="SiAnter" className="w-48 h-auto mb-4" />
           <p className="text-gray-300 text-lg">Driver Portal</p>
@@ -41,8 +50,12 @@ export function LoginDriver() {
 
         <div className="bg-white/95 backdrop-blur rounded-3xl shadow-2xl p-8">
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Login Driver</h2>
-            <p className="text-gray-600 text-sm">Masuk dengan kredensial yang diberikan admin</p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Login Driver
+            </h2>
+            <p className="text-gray-600 text-sm">
+              Masuk dengan kredensial yang diberikan admin
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -54,7 +67,9 @@ export function LoginDriver() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email
+              </label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
@@ -69,7 +84,9 @@ export function LoginDriver() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Password
+              </label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
@@ -91,18 +108,6 @@ export function LoginDriver() {
               {loading ? "Memproses..." : "Login"}
             </button>
           </form>
-
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <p className="text-center text-sm text-gray-600 mb-3">Login sebagai:</p>
-            <div className="flex flex-col gap-2 text-sm text-center">
-              <Link to="/login-customer" className="text-gray-600 hover:text-[#FF6A00] transition-colors font-medium">
-                Customer
-              </Link>
-              <Link to="/login-admin" className="text-gray-600 hover:text-[#FF6A00] transition-colors font-medium">
-                Admin Panel
-              </Link>
-            </div>
-          </div>
         </div>
       </div>
     </div>

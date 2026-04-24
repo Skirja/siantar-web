@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router";
+import { useNavigate } from "react-router";
 import { useTitle } from "../../hooks/useTitle";
 import { useAuth } from "../../contexts/AuthContext";
-import { User, Phone, AlertCircle } from "lucide-react";
+import { User, Phone, AlertCircle, ChevronLeft } from "lucide-react";
 import logoImg from "../../../assets/siantar-aja-logo.png";
 
 export function LoginCustomer() {
@@ -46,9 +46,22 @@ export function LoginCustomer() {
         </div>
 
         <div className="bg-white/95 backdrop-blur rounded-3xl shadow-2xl p-8">
+          {/* Back button */}
+          <button
+            onClick={() => navigate("/role-select")}
+            className="flex items-center gap-1 text-sm text-gray-500 hover:text-[#FF6A00] transition-colors mb-4 -ml-1"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Kembali
+          </button>
+
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Selamat Datang!</h2>
-            <p className="text-gray-600 text-sm">Masukkan data untuk melanjutkan</p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Selamat Datang!
+            </h2>
+            <p className="text-gray-600 text-sm">
+              Masukkan data untuk melanjutkan
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -60,7 +73,9 @@ export function LoginCustomer() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Nama Lengkap</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nama Lengkap
+              </label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
@@ -75,7 +90,9 @@ export function LoginCustomer() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Nomor HP</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nomor HP
+              </label>
               <div className="relative">
                 <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
@@ -97,18 +114,6 @@ export function LoginCustomer() {
               {loading ? "Memproses..." : "Masuk"}
             </button>
           </form>
-
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <p className="text-center text-sm text-gray-600 mb-3">Login sebagai:</p>
-            <div className="flex flex-col gap-2 text-sm text-center">
-              <Link to="/login-admin" className="text-gray-600 hover:text-[#FF6A00] transition-colors font-medium">
-                Admin Panel
-              </Link>
-              <Link to="/login-driver" className="text-gray-600 hover:text-[#FF6A00] transition-colors font-medium">
-                Driver Portal
-              </Link>
-            </div>
-          </div>
         </div>
       </div>
     </div>

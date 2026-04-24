@@ -15,6 +15,7 @@ import { Splash } from "./pages/auth/Splash";
 import { LoginCustomer } from "./pages/auth/LoginCustomer";
 import { LoginAdmin } from "./pages/auth/LoginAdmin";
 import { LoginDriver } from "./pages/auth/LoginDriver";
+import { RoleSelection } from "./pages/auth/RoleSelection";
 import { ServiceSelection } from "./pages/customer/ServiceSelection";
 // import { KirimBarang } from "./pages/customer/KirimBarang";
 import { ServiceClosed } from "./pages/customer/ServiceClosed";
@@ -30,13 +31,17 @@ function ServiceStatusWrapper() {
   const { pathname } = useLocation();
 
   // Check if it's a customer route (starts with /home, /service-selection, or is /)
-  const isCustomerRoute = 
-    pathname.includes('/home') || 
-    pathname.includes('/service-selection') || 
-    pathname === '/' || 
-    pathname.includes('/login-customer');
+  const isCustomerRoute =
+    pathname.includes("/home") ||
+    pathname.includes("/service-selection") ||
+    pathname === "/" ||
+    pathname.includes("/login-customer");
 
-  if (appSettings.is_service_open === false && isCustomerRoute && !pathname.includes('/closed')) {
+  if (
+    appSettings.is_service_open === false &&
+    isCustomerRoute &&
+    !pathname.includes("/closed")
+  ) {
     return <Navigate to="/closed" replace />;
   }
 
@@ -79,16 +84,20 @@ export const router = createHashRouter([
               { path: "payment/:orderId", element: <PaymentInstruction /> },
               { path: "tracking/:orderId", element: <OrderTracking /> },
               { path: "history", element: <History /> },
-// { path: "kirim-barang", element: <KirimBarang /> },
+              // { path: "kirim-barang", element: <KirimBarang /> },
             ],
           },
         ],
       },
       { path: "/closed", element: <ServiceClosed /> },
+      { path: "/role-select", element: <RoleSelection /> },
       { path: "/login-admin", element: <LoginAdmin /> },
       { path: "/login-driver", element: <LoginDriver /> },
       { path: "/admin", element: <AdminPanel /> },
-      { path: "/admin/outlet/:outletId/menu", element: <OutletMenuManagement /> },
+      {
+        path: "/admin/outlet/:outletId/menu",
+        element: <OutletMenuManagement />,
+      },
       { path: "/admin/settings", element: <Settings /> },
       { path: "/driver", element: <DriverPanel /> },
     ],

@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router";
+import { useNavigate } from "react-router";
 import { useTitle } from "../../hooks/useTitle";
 import { useAuth } from "../../contexts/AuthContext";
-import { User, Lock, AlertCircle, Shield } from "lucide-react";
+import { User, Lock, AlertCircle, Shield, ChevronLeft } from "lucide-react";
 import logoImg from "../../../assets/siantar-aja-logo.png";
 
 export function LoginAdmin() {
@@ -34,14 +34,23 @@ export function LoginAdmin() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8 flex flex-col items-center">
+        <div className="relative text-center mb-8 flex flex-col items-center">
+          <button
+            onClick={() => navigate("/role-select")}
+            className="absolute left-0 top-0 flex items-center gap-1 text-white/60 hover:text-white transition-colors text-sm"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Kembali
+          </button>
           <img src={logoImg} alt="SiAnter" className="w-48 h-auto mb-4" />
           <p className="text-gray-300 text-lg">Admin Panel</p>
         </div>
 
         <div className="bg-white/95 backdrop-blur rounded-3xl shadow-2xl p-8">
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Login Admin</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Login Admin
+            </h2>
             <p className="text-gray-600 text-sm">Akses panel kontrol</p>
           </div>
 
@@ -54,7 +63,9 @@ export function LoginAdmin() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email
+              </label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
@@ -69,7 +80,9 @@ export function LoginAdmin() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Password
+              </label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
@@ -91,18 +104,6 @@ export function LoginAdmin() {
               {loading ? "Memproses..." : "Login"}
             </button>
           </form>
-
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <p className="text-center text-sm text-gray-600 mb-3">Login sebagai:</p>
-            <div className="flex flex-col gap-2 text-sm text-center">
-              <Link to="/login-customer" className="text-gray-600 hover:text-[#FF6A00] transition-colors font-medium">
-                Customer
-              </Link>
-              <Link to="/login-driver" className="text-gray-600 hover:text-[#FF6A00] transition-colors font-medium">
-                Driver Portal
-              </Link>
-            </div>
-          </div>
         </div>
       </div>
     </div>
