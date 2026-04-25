@@ -36,14 +36,18 @@ const VILLAGE_GROUPS = [
   "Desa Bangun Jaya",
   "Desa Lupu Peruca",
   "Desa Natai Kondang",
-  "Desa Ajang"
+  "Desa Ajang",
+  "Desa Air Dua",
+  "Desa Jihing",
+  "Desa Semantun",
 ];
 
 export function KirimBarang() {
   useTitle("Kirim Barang");
 
   const navigate = useNavigate();
-  const { addOrder, feeSettings, outlets, orders, refreshFeeSettings } = useData();
+  const { addOrder, feeSettings, outlets, orders, refreshFeeSettings } =
+    useData();
 
   // Fallback: Refresh fee settings on mount
   useEffect(() => {
@@ -55,14 +59,19 @@ export function KirimBarang() {
   const [senderPhone, setSenderPhone] = useState("");
   const [senderVillage, setSenderVillage] = useState("");
   const [fromAddress, setFromAddress] = useState("");
-  const [fromCoords, setFromCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [fromCoords, setFromCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
   // Receiver (Penerima) Details
   const [receiverName, setReceiverName] = useState("");
   const [receiverPhone, setReceiverPhone] = useState("");
   const [receiverVillage, setReceiverVillage] = useState("");
   const [toAddress, setToAddress] = useState("");
-  const [toCoords, setToCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [toCoords, setToCoords] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
 
   // Package Details
   const [packageCategory, setPackageCategory] = useState("");
@@ -84,20 +93,34 @@ export function KirimBarang() {
     cost_per_km: feeSettings.cost_per_km ?? getDefaultFeeSettings().cost_per_km,
     service_fee: feeSettings.service_fee ?? getDefaultFeeSettings().service_fee,
     admin_fee: feeSettings.admin_fee ?? getDefaultFeeSettings().admin_fee,
-    driver_share_pct: feeSettings.driver_share_pct ?? getDefaultFeeSettings().driver_share_pct,
-    admin_share_pct: feeSettings.admin_share_pct ?? getDefaultFeeSettings().admin_share_pct,
-    min_distance_km: feeSettings.min_distance_km ?? getDefaultFeeSettings().min_distance_km,
+    driver_share_pct:
+      feeSettings.driver_share_pct ?? getDefaultFeeSettings().driver_share_pct,
+    admin_share_pct:
+      feeSettings.admin_share_pct ?? getDefaultFeeSettings().admin_share_pct,
+    min_distance_km:
+      feeSettings.min_distance_km ?? getDefaultFeeSettings().min_distance_km,
   };
 
   // Calculate distance
-  const distance = (fromCoords && toCoords) 
-    ? calculateDistance(fromCoords.lat, fromCoords.lng, toCoords.lat, toCoords.lng)
-    : 0;
-    
+  const distance =
+    fromCoords && toCoords
+      ? calculateDistance(
+          fromCoords.lat,
+          fromCoords.lng,
+          toCoords.lat,
+          toCoords.lng,
+        )
+      : 0;
+
   const subtotal = 0;
   const finance = calculateOrderFinance(subtotal, distance, 0, fees);
 
-  const displayWeight = estimatedWeight && parseFloat(estimatedWeight) < 1 ? "1 kg" : estimatedWeight ? `${estimatedWeight} kg` : "0 kg";
+  const displayWeight =
+    estimatedWeight && parseFloat(estimatedWeight) < 1
+      ? "1 kg"
+      : estimatedWeight
+        ? `${estimatedWeight} kg`
+        : "0 kg";
   const deliveryOutlet = outlets[0]; // Fallback outlet for delivery service
 
   const handleGetLocation = (type: "from" | "to") => {
@@ -119,23 +142,37 @@ export function KirimBarang() {
           setToCoords(coords);
           setIsLocatingTo(false);
         }
-        toast.success(`Lokasi ${type === "from" ? "Jemput" : "Antar"} berhasil diambil!`);
+        toast.success(
+          `Lokasi ${type === "from" ? "Jemput" : "Antar"} berhasil diambil!`,
+        );
       },
       (err) => {
         toast.error("Gagal mengambil lokasi: " + err.message);
         if (type === "from") setIsLocatingFrom(false);
         else setIsLocatingTo(false);
       },
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true },
     );
   };
 
   const handleSubmit = async () => {
-    if (!senderName || !senderPhone || !senderVillage || !fromAddress || !fromCoords) {
+    if (
+      !senderName ||
+      !senderPhone ||
+      !senderVillage ||
+      !fromAddress ||
+      !fromCoords
+    ) {
       toast.error("Mohon lengkapi data pengirim & lokasi jemput");
       return;
     }
-    if (!receiverName || !receiverPhone || !receiverVillage || !toAddress || !toCoords) {
+    if (
+      !receiverName ||
+      !receiverPhone ||
+      !receiverVillage ||
+      !toAddress ||
+      !toCoords
+    ) {
       toast.error("Mohon lengkapi data penerima & lokasi antar");
       return;
     }
@@ -153,12 +190,26 @@ export function KirimBarang() {
     try {
       const today = new Date().toDateString();
       const todayOrderCodes = orders
-        .filter(o => o.unique_payment_code && new Date(o.created_at).toDateString() === today)
-        .map(o => o.unique_payment_code as number);
+        .filter(
+          (o) =>
+            o.unique_payment_code &&
+            new Date(o.created_at).toDateString() === today,
+        )
+        .map((o) => o.unique_payment_code as number);
 
-      const uniquePaymentCode = paymentMethod !== "cod" ? generateUniquePaymentCode(todayOrderCodes) : null;
-      const finalPaymentAmount = uniquePaymentCode ? finance.total + uniquePaymentCode : finance.total;
-      const paymentProvider = paymentMethod === "transfer-bri" ? "BRI" : paymentMethod === "transfer-dana" ? "DANA" : null;
+      const uniquePaymentCode =
+        paymentMethod !== "cod"
+          ? generateUniquePaymentCode(todayOrderCodes)
+          : null;
+      const finalPaymentAmount = uniquePaymentCode
+        ? finance.total + uniquePaymentCode
+        : finance.total;
+      const paymentProvider =
+        paymentMethod === "transfer-bri"
+          ? "BRI"
+          : paymentMethod === "transfer-dana"
+            ? "DANA"
+            : null;
 
       const orderId = crypto.randomUUID();
 
@@ -202,7 +253,8 @@ export function KirimBarang() {
           to_latitude: toCoords.lat,
           to_longitude: toCoords.lng,
           package_category: packageCategory,
-          estimated_weight: parseFloat(estimatedWeight) < 1 ? 1 : parseFloat(estimatedWeight),
+          estimated_weight:
+            parseFloat(estimatedWeight) < 1 ? 1 : parseFloat(estimatedWeight),
           notes,
         },
       };
@@ -245,8 +297,12 @@ export function KirimBarang() {
         </button>
 
         <div className="mb-8 text-center md:text-left">
-          <h1 className="text-3xl font-black text-gray-900 mb-2">Kirim Barang</h1>
-          <p className="text-gray-600">Layanan pengantaran paket instan berbasis GPS</p>
+          <h1 className="text-3xl font-black text-gray-900 mb-2">
+            Kirim Barang
+          </h1>
+          <p className="text-gray-600">
+            Layanan pengantaran paket instan berbasis GPS
+          </p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
@@ -255,7 +311,9 @@ export function KirimBarang() {
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="bg-blue-600 p-4 text-white flex items-center gap-3">
                 <User className="w-5 h-5" />
-                <h2 className="font-bold uppercase tracking-wider text-sm">Titik Penjemputan</h2>
+                <h2 className="font-bold uppercase tracking-wider text-sm">
+                  Titik Penjemputan
+                </h2>
               </div>
               <div className="p-6 space-y-5">
                 <div className="grid md:grid-cols-2 gap-4">
@@ -275,25 +333,39 @@ export function KirimBarang() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Desa Penjemputan</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Desa Penjemputan
+                  </label>
                   <select
                     value={senderVillage}
                     onChange={(e) => setSenderVillage(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
                   >
                     <option value="">Pilih Desa...</option>
-                    {VILLAGE_GROUPS.map(v => <option key={v} value={v}>{v}</option>)}
+                    {VILLAGE_GROUPS.map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <button
                   onClick={() => handleGetLocation("from")}
                   disabled={isLocatingFrom}
                   className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold ${
-                    fromCoords ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                    fromCoords
+                      ? "bg-blue-50 border-blue-500 text-blue-700"
+                      : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
                   }`}
                 >
-                  {isLocatingFrom ? <Loader2 className="w-5 h-5 animate-spin" /> : <MapPin className="w-5 h-5" />}
-                  {fromCoords ? "Lokasi Jemput Terdeteksi" : "📍 Gunakan Lokasi Saya Sekarang"}
+                  {isLocatingFrom ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <MapPin className="w-5 h-5" />
+                  )}
+                  {fromCoords
+                    ? "Lokasi Jemput Terdeteksi"
+                    : "📍 Gunakan Lokasi Saya Sekarang"}
                 </button>
                 <textarea
                   value={fromAddress}
@@ -309,7 +381,9 @@ export function KirimBarang() {
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="bg-green-600 p-4 text-white flex items-center gap-3">
                 <Navigation className="w-5 h-5" />
-                <h2 className="font-bold uppercase tracking-wider text-sm">Titik Pengantaran</h2>
+                <h2 className="font-bold uppercase tracking-wider text-sm">
+                  Titik Pengantaran
+                </h2>
               </div>
               <div className="p-6 space-y-5">
                 <div className="grid md:grid-cols-2 gap-4">
@@ -329,28 +403,44 @@ export function KirimBarang() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Desa Pengantaran</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Desa Pengantaran
+                  </label>
                   <select
                     value={receiverVillage}
                     onChange={(e) => setReceiverVillage(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-white text-sm"
                   >
                     <option value="">Pilih Desa...</option>
-                    {VILLAGE_GROUPS.map(v => <option key={v} value={v}>{v}</option>)}
+                    {VILLAGE_GROUPS.map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 text-xs text-orange-800 italic">
-                  * Jika Anda berada di lokasi tujuan, klik tombol di bawah. Jika tidak, kurir akan tetap menuju alamat manual yang Anda tulis.
+                  * Jika Anda berada di lokasi tujuan, klik tombol di bawah.
+                  Jika tidak, kurir akan tetap menuju alamat manual yang Anda
+                  tulis.
                 </div>
                 <button
                   onClick={() => handleGetLocation("to")}
                   disabled={isLocatingTo}
                   className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold ${
-                    toCoords ? "bg-green-50 border-green-500 text-green-700" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                    toCoords
+                      ? "bg-green-50 border-green-500 text-green-700"
+                      : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
                   }`}
                 >
-                  {isLocatingTo ? <Loader2 className="w-5 h-5 animate-spin" /> : <MapPin className="w-5 h-5" />}
-                  {toCoords ? "Lokasi Antar Terdeteksi" : "📍 Gunakan Lokasi Saya (di Tujuan)"}
+                  {isLocatingTo ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <MapPin className="w-5 h-5" />
+                  )}
+                  {toCoords
+                    ? "Lokasi Antar Terdeteksi"
+                    : "📍 Gunakan Lokasi Saya (di Tujuan)"}
                 </button>
                 <textarea
                   value={toAddress}
@@ -370,18 +460,26 @@ export function KirimBarang() {
               </h2>
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Jenis Barang</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Jenis Barang
+                  </label>
                   <select
                     value={packageCategory}
                     onChange={(e) => setPackageCategory(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none bg-white"
                   >
                     <option value="">Pilih Kategori</option>
-                    {PACKAGE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    {PACKAGE_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Estimasi Berat (kg)</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Estimasi Berat (kg)
+                  </label>
                   <div className="relative">
                     <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
@@ -407,34 +505,46 @@ export function KirimBarang() {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 sticky top-8 space-y-6">
               <h3 className="text-lg font-bold">Ringkasan Biaya</h3>
-              
+
               {fromCoords && toCoords ? (
                 <div className="space-y-4 animate-in fade-in zoom-in-95">
                   <div className="grid grid-cols-2 gap-2 text-center text-xs">
                     <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
                       <div className="text-gray-400 mb-1">JARAK</div>
-                      <div className="font-bold text-gray-900">{distance} KM</div>
+                      <div className="font-bold text-gray-900">
+                        {distance} KM
+                      </div>
                     </div>
                     <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
                       <div className="text-gray-400 mb-1">ZONA</div>
-                      <div className="font-bold text-gray-900">{finance.zone}</div>
+                      <div className="font-bold text-gray-900">
+                        {finance.zone}
+                      </div>
                     </div>
                   </div>
 
                   <div className="space-y-2 py-4 border-y border-dashed border-gray-200">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Biaya Dasar</span>
-                      <span className="font-bold">{formatCurrency(finance.zoneFee || 0)}</span>
+                      <span className="font-bold">
+                        {formatCurrency(finance.zoneFee || 0)}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Biaya Jarak</span>
-                      <span className="font-bold">{formatCurrency(distance * fees.cost_per_km)}</span>
+                      <span className="font-bold">
+                        {formatCurrency(distance * fees.cost_per_km)}
+                      </span>
                     </div>
                   </div>
 
                   <div className="flex justify-between items-center py-2">
-                    <span className="font-bold text-gray-900">Total Tagihan</span>
-                    <span className="text-2xl font-black text-orange-600">{formatCurrency(finance.total)}</span>
+                    <span className="font-bold text-gray-900">
+                      Total Tagihan
+                    </span>
+                    <span className="text-2xl font-black text-orange-600">
+                      {formatCurrency(finance.total)}
+                    </span>
                   </div>
 
                   <button
@@ -451,24 +561,35 @@ export function KirimBarang() {
                     <MapPin className="w-8 h-8 text-gray-300" />
                   </div>
                   <p className="text-sm text-gray-400 leading-relaxed px-4">
-                    Mohon ambil lokasi <span className="font-bold text-blue-600">Jemput</span> dan <span className="font-bold text-green-600">Antar</span> untuk menghitung ongkir.
+                    Mohon ambil lokasi{" "}
+                    <span className="font-bold text-blue-600">Jemput</span> dan{" "}
+                    <span className="font-bold text-green-600">Antar</span>{" "}
+                    untuk menghitung ongkir.
                   </p>
                 </div>
               )}
 
               {/* Payment Method in Summary */}
               <div className="pt-4 border-t border-gray-100">
-                <p className="text-xs font-bold text-gray-400 uppercase mb-3 tracking-widest">Metode Pembayaran</p>
+                <p className="text-xs font-bold text-gray-400 uppercase mb-3 tracking-widest">
+                  Metode Pembayaran
+                </p>
                 <div className="space-y-2">
-                  {["cod", "transfer-bri", "transfer-dana"].map(m => (
+                  {["cod", "transfer-bri", "transfer-dana"].map((m) => (
                     <button
                       key={m}
                       onClick={() => setPaymentMethod(m as any)}
                       className={`w-full text-left px-4 py-2 rounded-xl text-xs font-bold border-2 transition-all ${
-                        paymentMethod === m ? "border-orange-500 bg-orange-50 text-orange-700" : "border-gray-50 text-gray-400"
+                        paymentMethod === m
+                          ? "border-orange-500 bg-orange-50 text-orange-700"
+                          : "border-gray-50 text-gray-400"
                       }`}
                     >
-                      {m === "cod" ? "COD (BAYAR TUNAI)" : m === "transfer-bri" ? "TRANSFER BANK BRI" : "E-WALLET DANA"}
+                      {m === "cod"
+                        ? "COD (BAYAR TUNAI)"
+                        : m === "transfer-bri"
+                          ? "TRANSFER BANK BRI"
+                          : "E-WALLET DANA"}
                     </button>
                   ))}
                 </div>

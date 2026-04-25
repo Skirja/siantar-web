@@ -23,26 +23,35 @@ const VILLAGE_GROUPS = [
   "Desa Bangun Jaya",
   "Desa Lupu Peruca",
   "Desa Natai Kondang",
-  "Desa Ajang"
+  "Desa Ajang",
+  "Desa Air Dua",
+  "Desa Jihing",
+  "Desa Semantun",
 ];
 
 export function Checkout() {
   useTitle("Checkout");
 
   const { items, notes, subtotal: cartSubtotal, clearCart } = useCart();
-  const { addOrder, outlets, feeSettings, orders, refreshFeeSettings } = useData();
+  const { addOrder, outlets, feeSettings, orders, refreshFeeSettings } =
+    useData();
   const { customerPhone, username: customerName } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [village, setVillage] = useState("");
   const [address, setAddress] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"cod" | "transfer-bri" | "transfer-dana">("cod");
+  const [paymentMethod, setPaymentMethod] = useState<
+    "cod" | "transfer-bri" | "transfer-dana"
+  >("cod");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
 
   // GPS State (Fitur #55)
-  const [customerCoords, setCustomerCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [customerCoords, setCustomerCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [gpsDistance, setGpsDistance] = useState(0);
 
   // Pre-fill customer info from auth session
@@ -64,24 +73,35 @@ export function Checkout() {
   }, [items.length, navigate]);
 
   // Get outlet from first item (assuming all items from same store)
-  const outlet = outlets.find(o => o.id === items[0]?.outletId);
+  const outlet = outlets.find((o) => o.id === items[0]?.outletId);
 
   // Build FeeSettings from context data
   const fees = {
     cost_per_km: feeSettings.cost_per_km ?? getDefaultFeeSettings().cost_per_km,
     service_fee: feeSettings.service_fee ?? getDefaultFeeSettings().service_fee,
     admin_fee: feeSettings.admin_fee ?? getDefaultFeeSettings().admin_fee,
-    driver_share_pct: feeSettings.driver_share_pct ?? getDefaultFeeSettings().driver_share_pct,
-    admin_share_pct: feeSettings.admin_share_pct ?? getDefaultFeeSettings().admin_share_pct,
-    min_distance_km: feeSettings.min_distance_km ?? getDefaultFeeSettings().min_distance_km,
+    driver_share_pct:
+      feeSettings.driver_share_pct ?? getDefaultFeeSettings().driver_share_pct,
+    admin_share_pct:
+      feeSettings.admin_share_pct ?? getDefaultFeeSettings().admin_share_pct,
+    min_distance_km:
+      feeSettings.min_distance_km ?? getDefaultFeeSettings().min_distance_km,
   };
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-  const markupAmount = items.reduce((sum, item) => sum + (item.markupAmount * item.quantity), 0);
-  
+  const markupAmount = items.reduce(
+    (sum, item) => sum + item.markupAmount * item.quantity,
+    0,
+  );
+
   // distance is 0 if GPS not yet obtained
   const distance = customerCoords ? gpsDistance : 0;
-  const finance = calculateOrderFinance(cartSubtotal, distance, markupAmount, fees);
+  const finance = calculateOrderFinance(
+    cartSubtotal,
+    distance,
+    markupAmount,
+    fees,
+  );
 
   // Handle GPS Location (Fitur #55)
   const handleGetLocation = () => {
@@ -97,15 +117,20 @@ export function Checkout() {
 
     setIsLocating(true);
     toast.info("Mengambil lokasi Anda...");
-    
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         setCustomerCoords({ lat, lng });
-        
+
         // Calculate distance to outlet
-        const dist = calculateDistance(lat, lng, Number(outlet.latitude), Number(outlet.longitude));
+        const dist = calculateDistance(
+          lat,
+          lng,
+          Number(outlet.latitude),
+          Number(outlet.longitude),
+        );
         setGpsDistance(dist);
         setIsLocating(false);
         toast.success(`Lokasi terdeteksi! Jarak: ${dist} KM`);
@@ -115,7 +140,7 @@ export function Checkout() {
         toast.error("Gagal mengambil lokasi: " + err.message);
         setIsLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 10000 },
     );
   };
 
@@ -126,7 +151,9 @@ export function Checkout() {
     }
 
     if (!customerCoords) {
-      toast.error("Mohon klik tombol 'Gunakan Lokasi Saya' untuk menghitung ongkir");
+      toast.error(
+        "Mohon klik tombol 'Gunakan Lokasi Saya' untuk menghitung ongkir",
+      );
       return;
     }
 
@@ -145,12 +172,13 @@ export function Checkout() {
     try {
       // 1. Re-validate outlet status right before creating order using FRESH SERVER DATA
       const { data: freshOutlet, error: outletError } = await supabase
-        .from('outlets')
-        .select('*')
-        .eq('id', outlet.id)
+        .from("outlets")
+        .select("*")
+        .eq("id", outlet.id)
         .single();
-        
-      const { data: serverTimeStr, error: timeError } = await supabase.rpc('get_server_time');
+
+      const { data: serverTimeStr, error: timeError } =
+        await supabase.rpc("get_server_time");
 
       if (outletError || !freshOutlet || timeError || !serverTimeStr) {
         toast.error("Koneksi tidak stabil. Gagal memvalidasi status outlet.");
@@ -161,7 +189,9 @@ export function Checkout() {
       const serverDate = new Date(serverTimeStr);
 
       if (!isOutletCurrentlyOpen(freshOutlet as any, serverDate)) {
-        toast.error("Mohon maaf, outlet baru saja tutup. Pesanan tidak dapat dilanjutkan.");
+        toast.error(
+          "Mohon maaf, outlet baru saja tutup. Pesanan tidak dapat dilanjutkan.",
+        );
         navigate(`/home/store/${outlet.id}`);
         setIsSubmitting(false);
         return;
@@ -169,18 +199,28 @@ export function Checkout() {
 
       const today = new Date().toDateString();
       const todayOrderCodes = orders
-        .filter(o => o.unique_payment_code && new Date(o.created_at).toDateString() === today)
-        .map(o => o.unique_payment_code as number);
+        .filter(
+          (o) =>
+            o.unique_payment_code &&
+            new Date(o.created_at).toDateString() === today,
+        )
+        .map((o) => o.unique_payment_code as number);
 
-      const uniquePaymentCode = paymentMethod !== "cod"
-        ? generateUniquePaymentCode(todayOrderCodes)
-        : null;
+      const uniquePaymentCode =
+        paymentMethod !== "cod"
+          ? generateUniquePaymentCode(todayOrderCodes)
+          : null;
 
       const finalPaymentAmount = uniquePaymentCode
         ? finance.total + uniquePaymentCode
         : finance.total;
 
-      const paymentProvider = paymentMethod === "transfer-bri" ? "BRI" : paymentMethod === "transfer-dana" ? "DANA" : null;
+      const paymentProvider =
+        paymentMethod === "transfer-bri"
+          ? "BRI"
+          : paymentMethod === "transfer-dana"
+            ? "DANA"
+            : null;
 
       // Build order data
       const orderData: TablesInsert<"orders"> = {
@@ -202,7 +242,8 @@ export function Checkout() {
         payment_provider: paymentProvider,
         unique_payment_code: uniquePaymentCode,
         final_payment_amount: finalPaymentAmount,
-        payment_status: paymentMethod === "cod" ? "pending" : "awaiting_admin_confirmation",
+        payment_status:
+          paymentMethod === "cod" ? "pending" : "awaiting_admin_confirmation",
         status: "pending",
         is_manual_order: false,
         is_delivery_service: false,
@@ -212,7 +253,7 @@ export function Checkout() {
         customer_note: notes || null,
       };
 
-      const orderItems: TablesInsert<"order_items">[] = items.map(item => ({
+      const orderItems: TablesInsert<"order_items">[] = items.map((item) => ({
         order_id: orderData.id!,
         product_id: item.productId || null,
         name: item.name,
@@ -221,7 +262,7 @@ export function Checkout() {
         markup_amount: item.markupAmount,
         item_total: item.price * item.quantity,
         selected_variant: item.selectedVariant?.name ?? null,
-        selected_extras: (item.selectedExtras || []).map(e => e.name),
+        selected_extras: (item.selectedExtras || []).map((e) => e.name),
         note: item.note || null,
       }));
 
@@ -263,7 +304,7 @@ export function Checkout() {
                 <Navigation className="w-5 h-5 text-orange-500" />
                 Informasi Pengiriman
               </h2>
-              
+
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -277,7 +318,7 @@ export function Checkout() {
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all outline-none"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Nomor Telepon (WhatsApp)
@@ -300,8 +341,8 @@ export function Checkout() {
                     onClick={handleGetLocation}
                     disabled={isLocating}
                     className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl border-2 transition-all font-bold ${
-                      customerCoords 
-                        ? "bg-green-50 border-green-500 text-green-700" 
+                      customerCoords
+                        ? "bg-green-50 border-green-500 text-green-700"
                         : "bg-orange-50 border-orange-200 text-orange-600 hover:bg-orange-100"
                     }`}
                   >
@@ -310,10 +351,13 @@ export function Checkout() {
                     ) : (
                       <MapPin className="w-5 h-5" />
                     )}
-                    {customerCoords ? "Lokasi Berhasil Diambil" : "📍 Gunakan Lokasi Saya"}
+                    {customerCoords
+                      ? "Lokasi Berhasil Diambil"
+                      : "📍 Gunakan Lokasi Saya"}
                   </button>
                   <p className="text-[11px] text-gray-500 mt-2 italic text-center">
-                    * Wajib klik tombol di atas agar kurir tahu posisi Anda & ongkir terhitung otomatis.
+                    * Wajib klik tombol di atas agar kurir tahu posisi Anda &
+                    ongkir terhitung otomatis.
                   </p>
                 </div>
 
@@ -321,24 +365,40 @@ export function Checkout() {
                   <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 animate-in fade-in slide-in-from-top-2">
                     <div className="flex items-center justify-between text-xs text-blue-700 font-bold uppercase tracking-wider mb-3">
                       <span>Rincian Jarak & Zona</span>
-                      <span className="px-2 py-0.5 bg-blue-100 rounded-full">GPS Aktif</span>
+                      <span className="px-2 py-0.5 bg-blue-100 rounded-full">
+                        GPS Aktif
+                      </span>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="bg-white p-3 rounded-lg shadow-sm text-center">
-                        <div className="text-[10px] text-gray-400 font-medium mb-1">JARAK</div>
-                        <div className="text-sm font-bold text-gray-900">{gpsDistance} KM</div>
+                        <div className="text-[10px] text-gray-400 font-medium mb-1">
+                          JARAK
+                        </div>
+                        <div className="text-sm font-bold text-gray-900">
+                          {gpsDistance} KM
+                        </div>
                       </div>
                       <div className="bg-white p-3 rounded-lg shadow-sm text-center">
-                        <div className="text-[10px] text-gray-400 font-medium mb-1">ZONA</div>
-                        <div className="text-sm font-bold text-gray-900">{finance.zone}</div>
+                        <div className="text-[10px] text-gray-400 font-medium mb-1">
+                          ZONA
+                        </div>
+                        <div className="text-sm font-bold text-gray-900">
+                          {finance.zone}
+                        </div>
                       </div>
                       <div className="bg-white p-3 rounded-lg shadow-sm text-center border-l-4 border-orange-400">
-                        <div className="text-[10px] text-gray-400 font-medium mb-1">ONGKIR</div>
-                        <div className="text-sm font-bold text-orange-600">{formatCurrency(finance.deliveryFee)}</div>
+                        <div className="text-[10px] text-gray-400 font-medium mb-1">
+                          ONGKIR
+                        </div>
+                        <div className="text-sm font-bold text-orange-600">
+                          {formatCurrency(finance.deliveryFee)}
+                        </div>
                       </div>
                     </div>
                     <div className="mt-3 text-[10px] text-blue-600/70 text-center leading-relaxed">
-                      Perhitungan: Biaya Zona {finance.zone} ({formatCurrency(finance.zoneFee || 0)}) + Jarak ({gpsDistance} km x {formatCurrency(fees.cost_per_km)})
+                      Perhitungan: Biaya Zona {finance.zone} (
+                      {formatCurrency(finance.zoneFee || 0)}) + Jarak (
+                      {gpsDistance} km x {formatCurrency(fees.cost_per_km)})
                     </div>
                   </div>
                 )}
@@ -378,17 +438,33 @@ export function Checkout() {
 
             {/* Payment Method */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-6">Metode Pembayaran</h2>
+              <h2 className="text-lg font-bold text-gray-900 mb-6">
+                Metode Pembayaran
+              </h2>
               <div className="space-y-3">
                 {[
-                  { id: "cod", label: "Cash on Delivery (COD)", sub: "Bayar tunai ke kurir saat sampai" },
-                  { id: "transfer-bri", label: "Transfer Bank BRI", sub: "Transfer ke rekening admin" },
-                  { id: "transfer-dana", label: "E-Wallet Dana", sub: "Bayar via aplikasi Dana" },
+                  {
+                    id: "cod",
+                    label: "Cash on Delivery (COD)",
+                    sub: "Bayar tunai ke kurir saat sampai",
+                  },
+                  {
+                    id: "transfer-bri",
+                    label: "Transfer Bank BRI",
+                    sub: "Transfer ke rekening admin",
+                  },
+                  {
+                    id: "transfer-dana",
+                    label: "E-Wallet Dana",
+                    sub: "Bayar via aplikasi Dana",
+                  },
                 ].map((m) => (
-                  <label 
+                  <label
                     key={m.id}
                     className={`flex items-center gap-4 p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                      paymentMethod === m.id ? "border-orange-500 bg-orange-50/30" : "border-gray-100 hover:border-gray-200"
+                      paymentMethod === m.id
+                        ? "border-orange-500 bg-orange-50/30"
+                        : "border-gray-100 hover:border-gray-200"
                     }`}
                   >
                     <input
@@ -412,14 +488,22 @@ export function Checkout() {
           {/* Right Column - Order Summary */}
           <div>
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sticky top-24">
-              <h2 className="text-lg font-bold text-gray-900 mb-6">Ringkasan Pesanan</h2>
+              <h2 className="text-lg font-bold text-gray-900 mb-6">
+                Ringkasan Pesanan
+              </h2>
 
               <div className="space-y-4 mb-6 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                 {items.map((item, index) => (
-                  <div key={`${item.productId}-${index}`} className="flex justify-between items-start gap-4 text-sm">
+                  <div
+                    key={`${item.productId}-${index}`}
+                    className="flex justify-between items-start gap-4 text-sm"
+                  >
                     <div className="flex-1">
                       <div className="text-gray-900 font-bold leading-tight mb-1">
-                        {item.name} <span className="text-orange-600">x{item.quantity}</span>
+                        {item.name}{" "}
+                        <span className="text-orange-600">
+                          x{item.quantity}
+                        </span>
                       </div>
                       <div className="text-[11px] text-gray-500 line-clamp-1 italic">
                         {item.outletName}
@@ -435,7 +519,9 @@ export function Checkout() {
               <div className="space-y-3 pt-6 border-t border-dashed border-gray-200 mb-6">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Subtotal Makanan</span>
-                  <span className="text-gray-900 font-medium">{formatCurrency(finance.subtotal)}</span>
+                  <span className="text-gray-900 font-medium">
+                    {formatCurrency(finance.subtotal)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Ongkos Kirim (GPS)</span>
@@ -443,7 +529,10 @@ export function Checkout() {
                     {finance.deliveryFee > 15000 ? (
                       <div className="text-right">
                         <span className="line-through text-gray-400 text-[11px] mr-1">
-                          {formatCurrency(Math.round(finance.deliveryFee * 1.15 / 1000) * 1000)}
+                          {formatCurrency(
+                            Math.round((finance.deliveryFee * 1.15) / 1000) *
+                              1000,
+                          )}
                         </span>
                         <span>{formatCurrency(finance.deliveryFee)}</span>
                       </div>
@@ -455,7 +544,9 @@ export function Checkout() {
               </div>
 
               <div className="flex justify-between items-center mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <span className="font-bold text-gray-900 text-lg">Total Bayar</span>
+                <span className="font-bold text-gray-900 text-lg">
+                  Total Bayar
+                </span>
                 <span className="text-2xl font-black text-orange-600 leading-none">
                   {formatCurrency(finance.total)}
                 </span>
@@ -475,7 +566,7 @@ export function Checkout() {
                   "Konfirmasi Pesanan"
                 )}
               </button>
-              
+
               {!customerCoords && (
                 <p className="text-center text-red-500 text-[11px] mt-4 font-medium animate-pulse">
                   ⚠️ Mohon ambil lokasi GPS untuk melanjutkan

@@ -70,6 +70,9 @@ const VILLAGE_GROUPS = [
   "Desa Lupu Peruca",
   "Desa Natai Kondang",
   "Desa Ajang",
+  "Desa Air Dua",
+  "Desa Jihing",
+  "Desa Semantun",
 ];
 
 const WILAYAH_1 = [
@@ -78,7 +81,14 @@ const WILAYAH_1 = [
   "Desa Balai Riam (Pusat Kecamatan)",
   "Desa Bangun Jaya",
 ];
-const WILAYAH_2 = ["Desa Lupu Peruca", "Desa Natai Kondang", "Desa Ajang"];
+const WILAYAH_2 = [
+  "Desa Lupu Peruca",
+  "Desa Natai Kondang",
+  "Desa Ajang",
+  "Desa Air Dua",
+  "Desa Jihing",
+  "Desa Semantun",
+];
 
 export function AdminPanel() {
   useTitle("Panel Admin");

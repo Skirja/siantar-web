@@ -1,18 +1,29 @@
 import { useState } from "react";
-import { useData, Outlet, ProductWithDetails, ProductVariant, ProductExtra } from "../contexts/DataContext";
-import { calculateOrderFinance, formatCurrency, getDefaultFeeSettings, generateUniquePaymentCode } from "../utils/financeCalculations";
-import { 
-  X, 
-  Plus, 
-  Minus, 
-  Trash2, 
-  ShoppingCart, 
-  User, 
-  Phone, 
-  MapPin, 
+import {
+  useData,
+  Outlet,
+  ProductWithDetails,
+  ProductVariant,
+  ProductExtra,
+} from "../contexts/DataContext";
+import {
+  calculateOrderFinance,
+  formatCurrency,
+  getDefaultFeeSettings,
+  generateUniquePaymentCode,
+} from "../utils/financeCalculations";
+import {
+  X,
+  Plus,
+  Minus,
+  Trash2,
+  ShoppingCart,
+  User,
+  Phone,
+  MapPin,
   FileText,
   Store,
-  Check
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { TablesInsert } from "../../lib/database.types";
@@ -37,17 +48,32 @@ const VILLAGE_GROUPS = [
   "Desa Bangun Jaya",
   "Desa Lupu Peruca",
   "Desa Natai Kondang",
-  "Desa Ajang"
+  "Desa Ajang",
+  "Desa Air Dua",
+  "Desa Jihing",
+  "Desa Semantun",
 ];
 
-export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCreationProps) {
-  const { outlets, products, getProductsByOutlet, addOrder, feeSettings, orders } = useData();
+export function ManualOrderCreation({
+  onClose,
+  onOrderCreated,
+}: ManualOrderCreationProps) {
+  const {
+    outlets,
+    products,
+    getProductsByOutlet,
+    addOrder,
+    feeSettings,
+    orders,
+  } = useData();
 
   // Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Step state
-  const [currentStep, setCurrentStep] = useState<"customer" | "outlet" | "items" | "review">("customer");
+  const [currentStep, setCurrentStep] = useState<
+    "customer" | "outlet" | "items" | "review"
+  >("customer");
 
   // Customer details
   const [customerName, setCustomerName] = useState("");
@@ -63,22 +89,29 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
 
   // Order items
   const [orderItems, setOrderItems] = useState<ManualOrderItem[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<ProductWithDetails | null>(null);
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | undefined>(undefined);
+  const [selectedProduct, setSelectedProduct] =
+    useState<ProductWithDetails | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<
+    ProductVariant | undefined
+  >(undefined);
   const [selectedExtras, setSelectedExtras] = useState<ProductExtra[]>([]);
   const [quantity, setQuantity] = useState(1);
 
   // Payment details
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "transfer">("cod");
-  const [paymentProvider, setPaymentProvider] = useState<string | undefined>(undefined);
+  const [paymentProvider, setPaymentProvider] = useState<string | undefined>(
+    undefined,
+  );
 
   // Frequently used customer data (localStorage)
-  const [savedCustomers, setSavedCustomers] = useState<Array<{
-    name: string;
-    phone: string;
-    village: string;
-    address: string;
-  }>>(() => {
+  const [savedCustomers, setSavedCustomers] = useState<
+    Array<{
+      name: string;
+      phone: string;
+      village: string;
+      address: string;
+    }>
+  >(() => {
     const saved = localStorage.getItem("sianter_saved_customers");
     return saved ? JSON.parse(saved) : [];
   });
@@ -88,24 +121,33 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
     cost_per_km: feeSettings.cost_per_km ?? getDefaultFeeSettings().cost_per_km,
     service_fee: feeSettings.service_fee ?? getDefaultFeeSettings().service_fee,
     admin_fee: feeSettings.admin_fee ?? getDefaultFeeSettings().admin_fee,
-    driver_share_pct: feeSettings.driver_share_pct ?? getDefaultFeeSettings().driver_share_pct,
-    admin_share_pct: feeSettings.admin_share_pct ?? getDefaultFeeSettings().admin_share_pct,
-    min_distance_km: feeSettings.min_distance_km ?? getDefaultFeeSettings().min_distance_km,
+    driver_share_pct:
+      feeSettings.driver_share_pct ?? getDefaultFeeSettings().driver_share_pct,
+    admin_share_pct:
+      feeSettings.admin_share_pct ?? getDefaultFeeSettings().admin_share_pct,
+    min_distance_km:
+      feeSettings.min_distance_km ?? getDefaultFeeSettings().min_distance_km,
   };
 
   // Calculate current item price
   const calculateItemPrice = () => {
     if (!selectedProduct) return 0;
-    
+
     // Use hierarchical markup logic
-    const isMarkupEnabled = selectedProduct.markup_enabled !== null 
-      ? selectedProduct.markup_enabled 
-      : (selectedOutlet?.markup_enabled !== false);
+    const isMarkupEnabled =
+      selectedProduct.markup_enabled !== null
+        ? selectedProduct.markup_enabled
+        : selectedOutlet?.markup_enabled !== false;
     const markupAmountPerItem = isMarkupEnabled ? 1000 : 0;
-    
-    const basePriceWithMarkup = (selectedProduct.discount_price || selectedProduct.price) + markupAmountPerItem;
+
+    const basePriceWithMarkup =
+      (selectedProduct.discount_price || selectedProduct.price) +
+      markupAmountPerItem;
     const variantPrice = selectedVariant ? selectedVariant.price_adjustment : 0;
-    const extrasPrice = selectedExtras.reduce((sum, extra) => sum + extra.price, 0);
+    const extrasPrice = selectedExtras.reduce(
+      (sum, extra) => sum + extra.price,
+      0,
+    );
     return (basePriceWithMarkup + variantPrice + extrasPrice) * quantity;
   };
 
@@ -122,7 +164,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
     };
 
     setOrderItems([...orderItems, newItem]);
-    
+
     // Reset item selection
     setSelectedProduct(null);
     setSelectedVariant(undefined);
@@ -143,19 +185,28 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
   const totalItems = orderItems.reduce((sum, item) => sum + item.quantity, 0);
   const distance = manualDistance || 0;
   const finance = calculateOrderFinance(subtotal, distance, totalItems, fees);
-  
+
   // Generate unique payment code for transfer
   // Collect existing codes from today's orders to avoid duplicates
   const today = new Date().toDateString();
   const todayOrderCodes = orders
-    .filter(o => o.unique_payment_code && new Date(o.created_at).toDateString() === today)
-    .map(o => o.unique_payment_code as number);
+    .filter(
+      (o) =>
+        o.unique_payment_code &&
+        new Date(o.created_at).toDateString() === today,
+    )
+    .map((o) => o.unique_payment_code as number);
 
-  const uniquePaymentCode = paymentMethod === "transfer" ? generateUniquePaymentCode(todayOrderCodes) : undefined;
-  const finalPaymentAmount = uniquePaymentCode ? finance.total + uniquePaymentCode : finance.total;
+  const uniquePaymentCode =
+    paymentMethod === "transfer"
+      ? generateUniquePaymentCode(todayOrderCodes)
+      : undefined;
+  const finalPaymentAmount = uniquePaymentCode
+    ? finance.total + uniquePaymentCode
+    : finance.total;
 
   // Handle customer data autofill
-  const handleCustomerSelect = (customer: typeof savedCustomers[0]) => {
+  const handleCustomerSelect = (customer: (typeof savedCustomers)[0]) => {
     setCustomerName(customer.name);
     setCustomerPhone(customer.phone);
     setCustomerVillage(customer.village);
@@ -165,7 +216,8 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
 
   // Save customer for future use
   const saveCustomerData = () => {
-    if (!customerName || !customerPhone || !customerVillage || !customerAddress) return;
+    if (!customerName || !customerPhone || !customerVillage || !customerAddress)
+      return;
 
     const customerData = {
       name: customerName,
@@ -176,7 +228,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
 
     // Check if customer already exists
     const existingIndex = savedCustomers.findIndex(
-      c => c.phone === customerPhone
+      (c) => c.phone === customerPhone,
     );
 
     let updatedCustomers;
@@ -188,7 +240,10 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
     }
 
     setSavedCustomers(updatedCustomers);
-    localStorage.setItem("sianter_saved_customers", JSON.stringify(updatedCustomers));
+    localStorage.setItem(
+      "sianter_saved_customers",
+      JSON.stringify(updatedCustomers),
+    );
   };
 
   // Create order
@@ -206,9 +261,10 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
 
       // Calculate total service fee as the sum of all item markups
       const totalMarkupAmount = orderItems.reduce((sum, item) => {
-        const isMarkupEnabled = item.product.markup_enabled !== null 
-          ? item.product.markup_enabled 
-          : (selectedOutlet?.markup_enabled !== false);
+        const isMarkupEnabled =
+          item.product.markup_enabled !== null
+            ? item.product.markup_enabled
+            : selectedOutlet?.markup_enabled !== false;
         return sum + (isMarkupEnabled ? 1000 : 0) * item.quantity;
       }, 0);
 
@@ -231,7 +287,8 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
         payment_provider: paymentProvider ?? null,
         unique_payment_code: uniquePaymentCode ?? null,
         final_payment_amount: uniquePaymentCode ? finalPaymentAmount : null,
-        payment_status: paymentMethod === "cod" ? "pending" : "awaiting_admin_confirmation",
+        payment_status:
+          paymentMethod === "cod" ? "pending" : "awaiting_admin_confirmation",
         status: "pending",
         is_manual_order: true,
         is_delivery_service: true,
@@ -239,29 +296,33 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
 
       const orderId = orderData.id!;
 
-      const itemsData: TablesInsert<"order_items">[] = orderItems.map((item) => {
-        const isMarkupEnabled = item.product.markup_enabled !== null 
-          ? item.product.markup_enabled 
-          : (selectedOutlet?.markup_enabled !== false);
-        const itemMarkup = isMarkupEnabled ? 1000 : 0;
+      const itemsData: TablesInsert<"order_items">[] = orderItems.map(
+        (item) => {
+          const isMarkupEnabled =
+            item.product.markup_enabled !== null
+              ? item.product.markup_enabled
+              : selectedOutlet?.markup_enabled !== false;
+          const itemMarkup = isMarkupEnabled ? 1000 : 0;
 
-        return {
-          order_id: orderId,
-          product_id: item.product.id,
-          name: item.product.name,
-          price: item.itemTotal / item.quantity,
-          quantity: item.quantity,
-          markup_amount: itemMarkup,
-          item_total: item.itemTotal,
-          selected_variant: item.selectedVariant?.name ?? null,
-          selected_extras: item.selectedExtras.length > 0
-            ? item.selectedExtras.map(e => e.name)
-            : null,
-        };
-      });
+          return {
+            order_id: orderId,
+            product_id: item.product.id,
+            name: item.product.name,
+            price: item.itemTotal / item.quantity,
+            quantity: item.quantity,
+            markup_amount: itemMarkup,
+            item_total: item.itemTotal,
+            selected_variant: item.selectedVariant?.name ?? null,
+            selected_extras:
+              item.selectedExtras.length > 0
+                ? item.selectedExtras.map((e) => e.name)
+                : null,
+          };
+        },
+      );
 
       const createdOrderId = await addOrder(orderData, itemsData);
-      
+
       toast.success("Pesanan manual berhasil dibuat!", {
         description: `Order ID: ${createdOrderId}`,
         duration: 5000,
@@ -271,7 +332,8 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
     } catch (error) {
       console.error("Error creating order:", error);
       toast.error("Gagal membuat pesanan", {
-        description: error instanceof Error ? error.message : "Terjadi kesalahan",
+        description:
+          error instanceof Error ? error.message : "Terjadi kesalahan",
       });
     } finally {
       setIsSubmitting(false);
@@ -283,22 +345,22 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
     if (!selectedOutlet) return "";
 
     const trackingLink = `${window.location.origin}/home/tracking/${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-    
+
     let message = `*PESANAN SIANTER*\n\n`;
     message += `Halo ${customerName},\n\n`;
     message += `Pesanan Anda telah kami terima:\n\n`;
     message += `📍 *Dari:* ${selectedOutlet.name}\n`;
     message += `📦 *Detail Pesanan:*\n`;
-    
+
     orderItems.forEach((item, index) => {
       message += `${index + 1}. ${item.product.name}`;
       if (item.selectedVariant) message += ` (${item.selectedVariant.name})`;
       if (item.selectedExtras.length > 0) {
-        message += ` + ${item.selectedExtras.map(e => e.name).join(", ")}`;
+        message += ` + ${item.selectedExtras.map((e) => e.name).join(", ")}`;
       }
       message += ` x${item.quantity} - ${formatCurrency(item.itemTotal)}\n`;
     });
-    
+
     message += `\n💰 *Rincian Pembayaran:*\n`;
     message += `Subtotal: ${formatCurrency(subtotal)}\n`;
     message += `Biaya Layanan: ${formatCurrency(finance.serviceFee)}\n`;
@@ -309,7 +371,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
       message += `💳 *Pembayaran Transfer ${paymentProvider}*\n`;
       message += `Jumlah yang harus dibayar: *${formatCurrency(finalPaymentAmount)}*\n`;
       message += `(Termasuk kode unik: ${uniquePaymentCode})\n\n`;
-      
+
       if (paymentProvider === "BRI") {
         message += `Rekening BRI: 1234-5678-9012-3456\n`;
         message += `a.n. SiAnter Delivery\n\n`;
@@ -317,12 +379,12 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
         message += `DANA: 0812-3456-7890\n`;
         message += `a.n. SiAnter Delivery\n\n`;
       }
-      
+
       message += `Setelah transfer, mohon kirim bukti pembayaran.\n\n`;
     } else {
       message += `💵 *Pembayaran: Cash on Delivery (COD)*\n\n`;
     }
-    
+
     message += `🔗 *Lacak pesanan Anda:*\n${trackingLink}\n\n`;
     message += `Terima kasih telah menggunakan SiAnter! 🚀`;
 
@@ -338,7 +400,7 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
 
   // Get available products for selected outlet
   const availableProducts = selectedOutlet
-    ? getProductsByOutlet(selectedOutlet.id).filter(p => p.is_available)
+    ? getProductsByOutlet(selectedOutlet.id).filter((p) => p.is_available)
     : [];
 
   return (
@@ -347,8 +409,12 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Buat Pesanan Manual</h2>
-            <p className="text-sm text-gray-500 mt-1">Admin-assisted ordering untuk WhatsApp orders</p>
+            <h2 className="text-2xl font-bold text-gray-900">
+              Buat Pesanan Manual
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Admin-assisted ordering untuk WhatsApp orders
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -368,8 +434,10 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
           ].map((step, index) => {
             const Icon = step.icon;
             const isCurrent = currentStep === step.id;
-            const isPast = ["customer", "outlet", "items", "review"].indexOf(currentStep) > index;
-            
+            const isPast =
+              ["customer", "outlet", "items", "review"].indexOf(currentStep) >
+              index;
+
             return (
               <div key={step.id} className="flex items-center gap-2">
                 <div
@@ -377,15 +445,19 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                     isCurrent
                       ? "bg-[#FF6A00] text-white"
                       : isPast
-                      ? "bg-green-500 text-white"
-                      : "bg-gray-100 text-gray-400"
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-100 text-gray-400"
                   }`}
                 >
                   <Icon className="w-4 h-4" />
-                  <span className="text-sm font-medium hidden sm:inline">{step.label}</span>
+                  <span className="text-sm font-medium hidden sm:inline">
+                    {step.label}
+                  </span>
                 </div>
                 {index < 3 && (
-                  <div className={`w-8 h-0.5 ${isPast ? "bg-green-500" : "bg-gray-200"}`} />
+                  <div
+                    className={`w-8 h-0.5 ${isPast ? "bg-green-500" : "bg-gray-200"}`}
+                  />
                 )}
               </div>
             );
@@ -398,12 +470,16 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
           {currentStep === "customer" && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Pelanggan</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Data Pelanggan
+                </h3>
 
                 {/* Saved Customers Quick Select */}
                 {savedCustomers.length > 0 && (
                   <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm font-medium text-gray-700 mb-3">Pelanggan Tersimpan:</p>
+                    <p className="text-sm font-medium text-gray-700 mb-3">
+                      Pelanggan Tersimpan:
+                    </p>
                     <div className="flex flex-wrap gap-2">
                       {savedCustomers.map((customer, index) => (
                         <button
@@ -473,7 +549,9 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                         type="number"
                         step="0.1"
                         value={manualDistance}
-                        onChange={(e) => setManualDistance(parseFloat(e.target.value) || 0)}
+                        onChange={(e) =>
+                          setManualDistance(parseFloat(e.target.value) || 0)
+                        }
                         placeholder="Contoh: 2.5"
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6A00] focus:border-transparent"
                       />
@@ -497,7 +575,12 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
 
               <button
                 onClick={() => {
-                  if (!customerName || !customerPhone || !customerVillage || !customerAddress) {
+                  if (
+                    !customerName ||
+                    !customerPhone ||
+                    !customerVillage ||
+                    !customerAddress
+                  ) {
                     toast.error("Mohon lengkapi semua data pelanggan");
                     return;
                   }
@@ -514,7 +597,9 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
           {currentStep === "outlet" && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Pilih Outlet</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Pilih Outlet
+                </h3>
                 <p className="text-sm text-gray-500 mb-4">
                   Customer: {customerName} - {customerVillage}
                 </p>
@@ -535,8 +620,12 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                       >
                         <div className="flex items-start justify-between">
                           <div>
-                            <h4 className="font-semibold text-gray-900">{outlet.name}</h4>
-                            <p className="text-sm text-gray-500 mt-1">{outlet.village}</p>
+                            <h4 className="font-semibold text-gray-900">
+                              {outlet.name}
+                            </h4>
+                            <p className="text-sm text-gray-500 mt-1">
+                              {outlet.village}
+                            </p>
                             <div className="flex items-center gap-2 mt-2">
                               <span className="text-xs px-2 py-1 bg-gray-100 rounded">
                                 {outlet.category}
@@ -580,7 +669,9 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
           {currentStep === "items" && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Pilih Menu</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Pilih Menu
+                </h3>
                 <p className="text-sm text-gray-500 mb-4">
                   Outlet: {selectedOutlet?.name}
                 </p>
@@ -588,22 +679,33 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                 {/* Current Order Items */}
                 {orderItems.length > 0 && (
                   <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <h4 className="font-medium text-green-900 mb-3">Item Pesanan ({orderItems.length})</h4>
+                    <h4 className="font-medium text-green-900 mb-3">
+                      Item Pesanan ({orderItems.length})
+                    </h4>
                     <div className="space-y-2">
                       {orderItems.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between bg-white p-3 rounded-lg">
+                        <div
+                          key={index}
+                          className="flex items-center justify-between bg-white p-3 rounded-lg"
+                        >
                           <div className="flex-1">
                             <p className="font-medium text-gray-900">
                               {item.product.name}
-                              {item.selectedVariant && ` (${item.selectedVariant.name})`}
+                              {item.selectedVariant &&
+                                ` (${item.selectedVariant.name})`}
                             </p>
                             {item.selectedExtras.length > 0 && (
                               <p className="text-sm text-gray-500">
-                                + {item.selectedExtras.map(e => e.name).join(", ")}
+                                +{" "}
+                                {item.selectedExtras
+                                  .map((e) => e.name)
+                                  .join(", ")}
                               </p>
                             )}
                             <p className="text-sm text-gray-600 mt-1">
-                              {item.quantity}x @ {formatCurrency(item.itemTotal / item.quantity)} = {formatCurrency(item.itemTotal)}
+                              {item.quantity}x @{" "}
+                              {formatCurrency(item.itemTotal / item.quantity)} ={" "}
+                              {formatCurrency(item.itemTotal)}
                             </p>
                           </div>
                           <button
@@ -632,7 +734,9 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                     <select
                       value={selectedProduct?.id || ""}
                       onChange={(e) => {
-                        const product = availableProducts.find(p => p.id === e.target.value);
+                        const product = availableProducts.find(
+                          (p) => p.id === e.target.value,
+                        );
                         setSelectedProduct(product || null);
                         setSelectedVariant(undefined);
                         setSelectedExtras([]);
@@ -642,7 +746,10 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                       <option value="">Pilih produk</option>
                       {availableProducts.map((product) => (
                         <option key={product.id} value={product.id}>
-                          {product.name} - {formatCurrency(product.discount_price || product.price)}
+                          {product.name} -{" "}
+                          {formatCurrency(
+                            product.discount_price || product.price,
+                          )}
                         </option>
                       ))}
                     </select>
@@ -669,7 +776,9 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                               >
                                 {variant.name}
                                 {variant.price_adjustment > 0 && (
-                                  <span className="ml-2 text-sm">+{formatCurrency(variant.price_adjustment)}</span>
+                                  <span className="ml-2 text-sm">
+                                    +{formatCurrency(variant.price_adjustment)}
+                                  </span>
                                 )}
                               </button>
                             ))}
@@ -685,15 +794,24 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                           </label>
                           <div className="space-y-2">
                             {selectedProduct.extras.map((extra) => {
-                              const isSelected = selectedExtras.some(e => e.id === extra.id);
+                              const isSelected = selectedExtras.some(
+                                (e) => e.id === extra.id,
+                              );
                               return (
                                 <button
                                   key={extra.id}
                                   onClick={() => {
                                     if (isSelected) {
-                                      setSelectedExtras(selectedExtras.filter(e => e.id !== extra.id));
+                                      setSelectedExtras(
+                                        selectedExtras.filter(
+                                          (e) => e.id !== extra.id,
+                                        ),
+                                      );
                                     } else {
-                                      setSelectedExtras([...selectedExtras, extra]);
+                                      setSelectedExtras([
+                                        ...selectedExtras,
+                                        extra,
+                                      ]);
                                     }
                                   }}
                                   className={`w-full p-3 border-2 rounded-lg text-left transition-colors ${
@@ -703,8 +821,12 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                                   }`}
                                 >
                                   <div className="flex items-center justify-between">
-                                    <span className="font-medium">{extra.name}</span>
-                                    <span className="text-sm">+{formatCurrency(extra.price)}</span>
+                                    <span className="font-medium">
+                                      {extra.name}
+                                    </span>
+                                    <span className="text-sm">
+                                      +{formatCurrency(extra.price)}
+                                    </span>
                                   </div>
                                 </button>
                               );
@@ -720,12 +842,16 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                         </label>
                         <div className="flex items-center gap-3">
                           <button
-                            onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                            onClick={() =>
+                              setQuantity(Math.max(1, quantity - 1))
+                            }
                             className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                           >
                             <Minus className="w-5 h-5" />
                           </button>
-                          <span className="text-xl font-semibold w-12 text-center">{quantity}</span>
+                          <span className="text-xl font-semibold w-12 text-center">
+                            {quantity}
+                          </span>
                           <button
                             onClick={() => setQuantity(quantity + 1)}
                             className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
@@ -738,7 +864,9 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                       {/* Item Total */}
                       <div className="p-4 bg-gray-50 rounded-lg">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-700">Total Item:</span>
+                          <span className="font-medium text-gray-700">
+                            Total Item:
+                          </span>
                           <span className="text-xl font-bold text-[#FF6A00]">
                             {formatCurrency(calculateItemPrice())}
                           </span>
@@ -785,40 +913,68 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
           {currentStep === "review" && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Review Pesanan</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Review Pesanan
+                </h3>
 
                 {/* Customer Info */}
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-3">Data Pelanggan</h4>
+                  <h4 className="font-medium text-gray-900 mb-3">
+                    Data Pelanggan
+                  </h4>
                   <div className="space-y-2 text-sm">
-                    <p><span className="font-medium">Nama:</span> {customerName}</p>
-                    <p><span className="font-medium">Telepon:</span> {customerPhone}</p>
-                    <p><span className="font-medium">Desa:</span> {customerVillage}</p>
-                    <p><span className="font-medium">Alamat:</span> {customerAddress}</p>
+                    <p>
+                      <span className="font-medium">Nama:</span> {customerName}
+                    </p>
+                    <p>
+                      <span className="font-medium">Telepon:</span>{" "}
+                      {customerPhone}
+                    </p>
+                    <p>
+                      <span className="font-medium">Desa:</span>{" "}
+                      {customerVillage}
+                    </p>
+                    <p>
+                      <span className="font-medium">Alamat:</span>{" "}
+                      {customerAddress}
+                    </p>
                   </div>
                 </div>
 
                 {/* Outlet Info */}
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                   <h4 className="font-medium text-gray-900 mb-3">Outlet</h4>
-                  <p className="text-sm">{selectedOutlet?.name} - {selectedOutlet?.village}</p>
-                  <p className="text-xs text-gray-500 mt-1">Jarak: {distance} km</p>
+                  <p className="text-sm">
+                    {selectedOutlet?.name} - {selectedOutlet?.village}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Jarak: {distance} km
+                  </p>
                 </div>
 
                 {/* Order Items */}
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-3">Item Pesanan</h4>
+                  <h4 className="font-medium text-gray-900 mb-3">
+                    Item Pesanan
+                  </h4>
                   <div className="space-y-2">
                     {orderItems.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between text-sm">
+                      <div
+                        key={index}
+                        className="flex items-center justify-between text-sm"
+                      >
                         <div className="flex-1">
                           <p className="font-medium">
                             {item.product.name}
-                            {item.selectedVariant && ` (${item.selectedVariant.name})`}
+                            {item.selectedVariant &&
+                              ` (${item.selectedVariant.name})`}
                           </p>
                           {item.selectedExtras.length > 0 && (
                             <p className="text-xs text-gray-500">
-                              + {item.selectedExtras.map(e => e.name).join(", ")}
+                              +{" "}
+                              {item.selectedExtras
+                                .map((e) => e.name)
+                                .join(", ")}
                             </p>
                           )}
                         </div>
@@ -848,7 +1004,9 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                       }`}
                     >
                       <p className="font-medium">💵 Cash on Delivery (COD)</p>
-                      <p className="text-xs text-gray-500 mt-1">Bayar saat pesanan sampai</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Bayar saat pesanan sampai
+                      </p>
                     </button>
 
                     <button
@@ -860,7 +1018,9 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                       }`}
                     >
                       <p className="font-medium">💳 Transfer Bank/E-Wallet</p>
-                      <p className="text-xs text-gray-500 mt-1">BRI atau DANA</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        BRI atau DANA
+                      </p>
                     </button>
                   </div>
 
@@ -892,7 +1052,9 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
 
                 {/* Financial Summary */}
                 <div className="p-4 bg-gradient-to-br from-[#FF6A00]/10 to-[#FF6A00]/5 rounded-lg border-2 border-[#FF6A00]/20">
-                  <h4 className="font-semibold text-gray-900 mb-3">Rincian Pembayaran</h4>
+                  <h4 className="font-semibold text-gray-900 mb-3">
+                    Rincian Pembayaran
+                  </h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span>Subtotal</span>
@@ -914,7 +1076,9 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                     <div className="pt-2 border-t border-[#FF6A00]/20">
                       <div className="flex justify-between font-bold text-base">
                         <span>Total</span>
-                        <span className="text-[#FF6A00]">{formatCurrency(finance.total)}</span>
+                        <span className="text-[#FF6A00]">
+                          {formatCurrency(finance.total)}
+                        </span>
                       </div>
                     </div>
                     {paymentMethod === "transfer" && uniquePaymentCode && (
@@ -942,7 +1106,10 @@ export function ManualOrderCreation({ onClose, onOrderCreated }: ManualOrderCrea
                 </button>
                 <button
                   onClick={createOrder}
-                  disabled={isSubmitting || (paymentMethod === "transfer" && !paymentProvider)}
+                  disabled={
+                    isSubmitting ||
+                    (paymentMethod === "transfer" && !paymentProvider)
+                  }
                   className="flex-1 bg-[#FF6A00] text-white py-3 rounded-lg font-medium hover:bg-[#FF6A00]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? "Membuat Pesanan..." : "Buat Pesanan"}
