@@ -46,15 +46,22 @@ export interface OrderFinance {
 /**
  * Calculates straight-line distance between two coordinates in KM using Haversine formula.
  */
-export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+export function calculateDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
   const R = 6371; // Earth radius in km
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2); 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c;
   return Math.round(distance * 10) / 10; // 1 decimal place
 }
@@ -63,7 +70,7 @@ export function calculateOrderFinance(
   subtotal: number, // This should be the marked-up subtotal (store_price + 1000) * qty
   distance: number,
   markupAmount: number = 0, // Explicitly passed markup total
-  fees: FeeSettings = getDefaultFeeSettings()
+  fees: FeeSettings = getDefaultFeeSettings(),
 ): OrderFinance {
   let deliveryFee = 0;
   let zone: "Hijau" | "Kuning" | "Merah" | "Manual" | undefined = undefined;
@@ -81,14 +88,14 @@ export function calculateOrderFinance(
     zone = "Merah";
     zoneFee = 15000;
   }
-  deliveryFee = zoneFee + (distance * fees.cost_per_km);
+  deliveryFee = zoneFee + distance * fees.cost_per_km;
 
   const chargedDistance = Math.max(distance, fees.min_distance_km);
   const isMinimumChargeApplied = distance < fees.min_distance_km;
-  
+
   const driverSharePct = fees.driver_share_pct / 100;
   const adminSharePct = fees.admin_share_pct / 100;
-  
+
   const driverEarning = deliveryFee * driverSharePct;
   const adminFromDelivery = deliveryFee * adminSharePct;
 
@@ -134,7 +141,7 @@ export interface DriverBonus {
 
 export function calculateDriverBonus(
   dailyOrders: number,
-  _weeklyOrders: number = 0
+  _weeklyOrders: number = 0,
 ): DriverBonus {
   // New bonus scheme (per day):
   // 10 orders  → Rp5.000
@@ -150,9 +157,63 @@ export function calculateDriverBonus(
   return { dailyBonus, weeklyBonus: 0, totalBonus: dailyBonus };
 }
 
+// ─── NUMANIE PIZZA FINANCE ────────────────────────────────────────────────────
+
+export interface NumanieFinance {
+  subtotal: number; // Total harga semua pizza
+  delivery_fee: number; // Ongkir total (zone_fee + distance * cost_per_km)
+  total: number; // subtotal + delivery_fee
+  distance: number; // Jarak GPS dalam KM (1 desimal)
+  zone: "Hijau" | "Kuning" | "Merah";
+  zone_fee: number; // Fee zona flat (5000/10000/15000)
+  total_ke_resto: number; // Yang dibayar ke Numanie Pizza = subtotal
+  total_driver_ambil: number; // Yang dikumpulkan kurir dari customer = total
+}
+
+/**
+ * Menghitung finance untuk order Numanie Pizza.
+ * Tidak ada markup, tidak ada potongan admin, tidak ada driver share.
+ * Ongkir menggunakan sistem zona yang sama dengan SiAntar utama.
+ */
+export function calculateNumanieFinance(
+  subtotal: number,
+  distance: number,
+  fees: FeeSettings = getDefaultFeeSettings(),
+): NumanieFinance {
+  let zone: "Hijau" | "Kuning" | "Merah";
+  let zone_fee: number;
+
+  if (distance <= 3) {
+    zone = "Hijau";
+    zone_fee = 5000;
+  } else if (distance <= 5) {
+    zone = "Kuning";
+    zone_fee = 10000;
+  } else {
+    zone = "Merah";
+    zone_fee = 15000;
+  }
+
+  const delivery_fee = zone_fee + Math.round(distance * fees.cost_per_km);
+  const total = subtotal + delivery_fee;
+
+  return {
+    subtotal,
+    delivery_fee,
+    total,
+    distance,
+    zone,
+    zone_fee,
+    total_ke_resto: subtotal,
+    total_driver_ambil: total,
+  };
+}
+
 // Generate 3-digit unique payment code (100-999)
 // Ensures the code is not already used in existingOrders
-export function generateUniquePaymentCode(existingOrderCodes: number[] = []): number {
+export function generateUniquePaymentCode(
+  existingOrderCodes: number[] = [],
+): number {
   const maxAttempts = 100;
   for (let i = 0; i < maxAttempts; i++) {
     const code = Math.floor(100 + Math.random() * 900); // 100-999

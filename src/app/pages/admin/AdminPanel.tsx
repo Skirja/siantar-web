@@ -32,6 +32,7 @@ import {
   AlertCircle,
   Calendar,
   Grid,
+  Pizza,
 } from "lucide-react";
 import { useData, Order, Outlet, Profile } from "../../contexts/DataContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -61,6 +62,7 @@ import {
   TabsContent,
 } from "../../components/ui/tabs";
 import { OrderItemsDetail } from "../../components/OrderItemsDetail";
+import { PreOrderNumanie } from "../../components/PreOrderNumanie";
 
 const VILLAGE_GROUPS = [
   "Desa Bukit Sungkai",
@@ -122,6 +124,7 @@ export function AdminPanel() {
   const [activeTab, setActiveTab] = useState<
     | "dashboard"
     | "orders"
+    | "pre-order"
     | "drivers"
     | "stores"
     | "finance"
@@ -344,6 +347,7 @@ export function AdminPanel() {
   const navigationItems = [
     { id: "dashboard", label: "Dasbor", icon: TrendingUp },
     { id: "orders", label: "Pesanan", icon: ShoppingBag },
+    { id: "pre-order", label: "PO Numanie", icon: Pizza },
     { id: "finance", label: "Keuangan", icon: DollarSign },
     { id: "drivers", label: "Driver", icon: Users },
     { id: "stores", label: "Outlet", icon: Store },
@@ -815,6 +819,8 @@ export function AdminPanel() {
               </div>
             </div>
           )}
+
+          {activeTab === "pre-order" && <PreOrderNumanie />}
 
           {/* Orders */}
           {activeTab === "orders" && (
