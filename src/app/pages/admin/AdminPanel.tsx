@@ -33,6 +33,8 @@ import {
   Calendar,
   Grid,
   Pizza,
+  EyeOff,
+  Eye,
 } from "lucide-react";
 import { useData, Order, Outlet, Profile } from "../../contexts/DataContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -186,6 +188,19 @@ export function AdminPanel() {
       return true; // "all"
     });
   }, [orders, dateFilter, statusFilter, customStartDate, customEndDate]);
+
+  const [showHiddenOutlets, setShowHiddenOutlets] = useState(false);
+
+  const hiddenOutletsCount = useMemo(
+    () => outlets.filter((o) => o.is_active === false).length,
+    [outlets],
+  );
+
+  const visibleOutlets = useMemo(() => {
+    return showHiddenOutlets
+      ? outlets
+      : outlets.filter((o) => o.is_active !== false);
+  }, [outlets, showHiddenOutlets]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -1942,17 +1957,43 @@ export function AdminPanel() {
           )}
           {activeTab === "stores" && (
             <div>
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
                 <h2 className="text-xl font-bold text-gray-900">
                   Manajemen Outlet
                 </h2>
-                <button
-                  onClick={handleAddOutlet}
-                  className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-                >
-                  <Plus className="w-5 h-5" />
-                  <span>Tambah Outlet</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowHiddenOutlets((v) => !v)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                      showHiddenOutlets
+                        ? "bg-gray-700 text-white border-gray-700"
+                        : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+                    }`}
+                  >
+                    {showHiddenOutlets ? (
+                      <Eye className="w-4 h-4" />
+                    ) : (
+                      <EyeOff className="w-4 h-4" />
+                    )}
+                    <span className="text-sm font-medium">
+                      {showHiddenOutlets
+                        ? "Sembunyikan Lagi"
+                        : "Tampilkan Tersembunyi"}
+                    </span>
+                    {!showHiddenOutlets && hiddenOutletsCount > 0 && (
+                      <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                        {hiddenOutletsCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleAddOutlet}
+                    className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                  >
+                    <Plus className="w-5 h-5" />
+                    <span>Tambah Outlet</span>
+                  </button>
+                </div>
               </div>
               {loadingOutlets ? (
                 <div className="flex justify-center py-12">
@@ -1960,7 +2001,17 @@ export function AdminPanel() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {outlets.map((outlet) => {
+                  {visibleOutlets.length === 0 && (
+                    <div className="col-span-2 py-16 text-center text-gray-400">
+                      <EyeOff className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                      <p className="text-sm">
+                        {showHiddenOutlets
+                          ? "Tidak ada outlet tersembunyi."
+                          : "Belum ada outlet aktif."}
+                      </p>
+                    </div>
+                  )}
+                  {visibleOutlets.map((outlet) => {
                     const menuCount = getProductsByOutlet(outlet.id).length;
                     const isActive = outlet.is_active !== false;
                     return (
