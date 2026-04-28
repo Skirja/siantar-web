@@ -24,8 +24,10 @@ import {
   ChevronRight,
   RefreshCw,
   XCircle,
+  Printer,
 } from "lucide-react";
 import { Database } from "../../lib/database.types";
+import { NumanieInvoiceModal } from "./NumanieInvoiceModal";
 
 type NumanieOrder = Database["public"]["Tables"]["numanie_orders"]["Row"];
 type NumanieCustomer =
@@ -122,6 +124,10 @@ export function PreOrderNumanie() {
   // Customer Filters
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
 
+  // Invoice Modal
+  const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState<NumanieOrder | null>(null);
+  const [lastSavedOrder, setLastSavedOrder] = useState<NumanieOrder | null>(null);
+
   const subtotal = cart.reduce((sum, item) => sum + item.item_total, 0);
 
   // --- Helper Functions ---
@@ -156,26 +162,6 @@ export function PreOrderNumanie() {
     return `https://wa.me/${clean}?text=${msg}`;
   };
 
-  const generateWAInvoice = (): string => {
-    if (!finance) return "";
-    const clean = customerPhone.replace(/\D/g, "").replace(/^0/, "62");
-    let msg = `🍕 *Invoice Numanie Pizza*\n\n`;
-    msg += `Hallo kak *${customerName}* 😊\n`;
-    msg += `Berikut detail pesanan:\n\n`;
-    msg += `*Detail Pesanan:*\n`;
-    cart.forEach((item) => {
-      msg += `• ${item.name} x${item.quantity} = ${formatCurrency(item.item_total)}\n`;
-    });
-    msg += `\n`;
-    msg += `Subtotal Pizza : ${formatCurrency(finance.subtotal)}\n`;
-    msg += `Ongkir (${finance.zone} · ${finance.distance}km) : ${formatCurrency(finance.delivery_fee)}\n`;
-    msg += `━━━━━━━━━━━━━━━\n`;
-    msg += `*TOTAL : ${formatCurrency(finance.total)}*\n\n`;
-    msg += `💵 Pembayaran: *COD* (bayar saat pesanan tiba)\n\n`;
-    msg += `Terima kasih sudah memesan! 🙏`;
-    return `https://wa.me/${clean}?text=${encodeURIComponent(msg)}`;
-  };
-
   const resetWizard = () => {
     setCart([]);
     setCustomName("");
@@ -188,6 +174,7 @@ export function PreOrderNumanie() {
     setParsedCoords(null);
     setFinance(null);
     setCoordError("");
+    setLastSavedOrder(null);
     setCurrentStep("cart");
   };
 
@@ -333,7 +320,7 @@ export function PreOrderNumanie() {
 
       const orderId = await generateOrderId();
 
-      const { error: insertError } = await supabase.from("numanie_orders").insert({
+      const newOrder = {
         id: orderId,
         customer_id: upsertedCustomer?.id ?? null,
         customer_name: customerName,
@@ -357,12 +344,15 @@ export function PreOrderNumanie() {
         total_ke_resto: finance.total_ke_resto,
         total_driver_ambil: finance.total_driver_ambil,
         status: "completed",
-      });
+        created_at: new Date().toISOString(),
+      };
+
+      const { error: insertError } = await supabase.from("numanie_orders").insert(newOrder);
 
       if (insertError) throw insertError;
 
       toast.success(`Order ${orderId} berhasil disimpan!`);
-      resetWizard();
+      setLastSavedOrder(newOrder as unknown as NumanieOrder);
     } catch (err: any) {
       toast.error("Gagal menyimpan order");
       console.error(err);
@@ -829,32 +819,51 @@ export function PreOrderNumanie() {
       </div>
 
       <div className="mt-6 space-y-3">
-        <button
-          onClick={() => {
-            window.open(generateWAInvoice(), "_blank");
-            handleSaveOrder();
-          }}
-          disabled={isSaving}
-          className="w-full bg-[#25D366] text-white px-4 py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-[#128C7E] disabled:opacity-50"
-        >
-          {isSaving ? "Menyimpan..." : <><MessageCircle className="w-5 h-5" /> Kirim Invoice & Simpan DB</>}
-        </button>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setCurrentStep("location")}
-            disabled={isSaving}
-            className="flex-1 px-4 py-2 border border-gray-300 bg-white rounded-lg text-gray-700 font-medium hover:bg-gray-50"
-          >
-            Kembali
-          </button>
-          <button
-            onClick={resetWizard}
-            disabled={isSaving}
-            className="flex-1 px-4 py-2 border border-gray-300 bg-white rounded-lg text-red-600 font-medium hover:bg-gray-50"
-          >
-            Batal & Ulangi
-          </button>
-        </div>
+        {!lastSavedOrder ? (
+          <>
+            <button
+              onClick={handleSaveOrder}
+              disabled={isSaving}
+              className="w-full bg-orange-500 text-white px-4 py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-orange-600 disabled:opacity-50"
+            >
+              {isSaving ? "Menyimpan..." : <><CheckCircle2 className="w-5 h-5" /> Simpan Pesanan</>}
+            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentStep("location")}
+                disabled={isSaving}
+                className="flex-1 px-4 py-2 border border-gray-300 bg-white rounded-lg text-gray-700 font-medium hover:bg-gray-50"
+              >
+                Kembali
+              </button>
+              <button
+                onClick={resetWizard}
+                disabled={isSaving}
+                className="flex-1 px-4 py-2 border border-gray-300 bg-white rounded-lg text-red-600 font-medium hover:bg-gray-50"
+              >
+                Batal & Ulangi
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="bg-green-50 border border-green-200 text-green-700 p-3 rounded-lg flex items-center gap-2 mb-4 justify-center font-medium">
+              <CheckCircle2 className="w-5 h-5" /> Pesanan Berhasil Disimpan!
+            </div>
+            <button
+              onClick={() => setSelectedOrderForInvoice(lastSavedOrder)}
+              className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-700"
+            >
+              <Printer className="w-5 h-5" /> Cetak Struk
+            </button>
+            <button
+              onClick={resetWizard}
+              className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-gray-800"
+            >
+              <Plus className="w-5 h-5" /> Buat Order Baru
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1077,12 +1086,21 @@ export function PreOrderNumanie() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {order.status === "completed" && (
-                          <button
-                            onClick={() => handleCancelOrder(order.id)}
-                            className="text-xs font-medium text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg"
-                          >
-                            Batalkan
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setSelectedOrderForInvoice(order)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                              title="Cetak Struk"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleCancelOrder(order.id)}
+                              className="text-xs font-medium text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg"
+                            >
+                              Batalkan
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -1092,6 +1110,14 @@ export function PreOrderNumanie() {
             </table>
           </div>
         </div>
+      )}
+
+      {/* Invoice Modal */}
+      {selectedOrderForInvoice && (
+        <NumanieInvoiceModal
+          order={selectedOrderForInvoice}
+          onClose={() => setSelectedOrderForInvoice(null)}
+        />
       )}
     </div>
   );
