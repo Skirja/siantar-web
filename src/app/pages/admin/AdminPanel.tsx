@@ -36,7 +36,7 @@ import {
   EyeOff,
   Eye,
 } from "lucide-react";
-import { useData, Order, Outlet, Profile } from "../../contexts/DataContext";
+import { useData, Order, Outlet, Profile, OrderStatus } from "../../contexts/DataContext";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   formatCurrency,
@@ -110,6 +110,7 @@ export function AdminPanel() {
     toggleOutletOpen,
     assignDriver,
     updateOrder,
+    updateOrderStatus,
     rejectOrder,
     deleteOrder,
     getProductsByOutlet,
@@ -278,6 +279,10 @@ export function AdminPanel() {
 
   // Driver assignment
   const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null);
+
+  // Admin status override
+  const [adminOverrideOrderId, setAdminOverrideOrderId] = useState<string | null>(null);
+  const [adminOverrideLoading, setAdminOverrideLoading] = useState(false);
 
   // Invoice
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -553,6 +558,19 @@ export function AdminPanel() {
       toast.error(err.message || "Gagal menghapus pesanan");
     } finally {
       setShowDeleteOrderConfirm(null);
+    }
+  };
+
+  const handleAdminStatusOverride = async (orderId: string, newStatus: OrderStatus) => {
+    setAdminOverrideLoading(true);
+    try {
+      await updateOrderStatus(orderId, newStatus);
+      toast.success(`Status diupdate: ${statusLabels[newStatus] ?? newStatus}`);
+      setAdminOverrideOrderId(null);
+    } catch (err: any) {
+      toast.error(err.message || "Gagal update status");
+    } finally {
+      setAdminOverrideLoading(false);
     }
   };
 
@@ -1481,11 +1499,9 @@ export function AdminPanel() {
                                           ? "Driver offline"
                                           : null;
                                         const warningReason =
-                                          driver.activeOrdersCount >= 2
-                                            ? "Maks 2 order aktif"
-                                            : !driver.isCompatible
-                                              ? "Beda arah/desa"
-                                              : null;
+                                          !driver.isCompatible
+                                            ? "Beda arah/desa"
+                                            : null;
 
                                         return (
                                           <div
@@ -1636,6 +1652,53 @@ export function AdminPanel() {
                               >
                                 Tolak Pesanan
                               </button>
+                            </div>
+                          )}
+
+                          {/* Admin Status Override */}
+                          {order.driver_id && ["driver_assigned", "processing", "going-to-store", "picked-up", "on-delivery"].includes(order.status) && (
+                            <div className="mt-3">
+                              {adminOverrideOrderId === order.id ? (
+                                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                                  <div className="text-xs font-bold text-purple-800 mb-2 flex items-center gap-1">
+                                    <AlertCircle className="w-3 h-3" />
+                                    Update Status Manual (Admin)
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-1.5 mb-2">
+                                    {(["going-to-store", "picked-up", "on-delivery", "completed"] as OrderStatus[]).map((s) => (
+                                      <button
+                                        key={s}
+                                        onClick={() => handleAdminStatusOverride(order.id, s)}
+                                        disabled={order.status === s || adminOverrideLoading}
+                                        className={`py-1.5 rounded text-xs font-bold transition-all ${
+                                          order.status === s
+                                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                            : "bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+                                        }`}
+                                      >
+                                        {adminOverrideLoading ? (
+                                          <Loader2 className="w-3 h-3 animate-spin mx-auto" />
+                                        ) : (
+                                          statusLabels[s]
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <button
+                                    onClick={() => setAdminOverrideOrderId(null)}
+                                    className="w-full py-1 text-gray-500 text-xs hover:bg-gray-100 rounded"
+                                  >
+                                    Batal
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setAdminOverrideOrderId(order.id)}
+                                  className="w-full px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors"
+                                >
+                                  🛠️ Update Status Manual
+                                </button>
+                              )}
                             </div>
                           )}
                           <div className="mt-3">

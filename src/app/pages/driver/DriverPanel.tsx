@@ -737,6 +737,9 @@ export function DriverPanel() {
                     return tasks.map((task, idx) => {
                       const isLast = idx === tasks.length - 1;
                       if (task.type === 'pickup') {
+                        const processingOrders = task.orders.filter((o: any) => o.status === "processing");
+                        const goingToStoreOrders = task.orders.filter((o: any) => o.status === "going-to-store");
+                        const allGoingToStore = task.orders.length > 0 && task.orders.every((o: any) => o.status === "going-to-store");
                         return (
                           <div key={`pickup-${task.outlet?.id}`} className="relative pl-10">
                             <div className={`absolute left-0 top-0 w-10 h-10 rounded-full flex items-center justify-center z-10 ${
@@ -745,14 +748,14 @@ export function DriverPanel() {
                               <Store className="w-5 h-5" />
                             </div>
                             <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                              <div className="flex justify-between items-start mb-2">
+                              <div className="flex justify-between items-start mb-3">
                                 <div>
                                   <h3 className="font-bold text-gray-900">{task.outlet?.name}</h3>
                                   <p className="text-xs text-gray-500">{task.outlet?.village}</p>
+                                  <p className="text-[10px] text-orange-600 font-semibold mt-0.5">{task.orders.length} pesanan</p>
                                 </div>
                                 <div className="flex gap-2">
-                                  {/* Maps Kedai */}
-                                  <a 
+                                  <a
                                     href={`https://www.google.com/maps?q=${task.outlet?.latitude},${task.outlet?.longitude}`}
                                     target="_blank" rel="noopener noreferrer"
                                     className="p-2 bg-white rounded-lg shadow-sm text-blue-600 border border-blue-100"
@@ -760,51 +763,81 @@ export function DriverPanel() {
                                   >
                                     <Navigation className="w-4 h-4" />
                                   </a>
-                                  {/* WhatsApp Customer (First Order in Group) */}
-                                  <a 
-                                    href={`https://wa.me/${normalizePhoneForWhatsApp(task.orders[0].customer_phone)}`}
-                                    target="_blank" rel="noopener noreferrer"
-                                    className="p-2 bg-white rounded-lg shadow-sm text-green-600 border border-green-100"
-                                    title="WhatsApp Customer"
-                                  >
-                                    <MessageCircle className="w-4 h-4" />
-                                  </a>
                                 </div>
                               </div>
-                              <div className="flex flex-wrap gap-2 mb-4">
+
+                              {/* Per-Order Cards */}
+                              <div className="space-y-2 mb-3">
                                 {task.orders.map((o: any) => (
-                                  <span key={o.id} className="text-[10px] bg-white border border-gray-200 px-2 py-1 rounded-full font-medium">
-                                    #{o.id.slice(0, 8)}
-                                  </span>
+                                  <div key={o.id} className="bg-white rounded-lg p-2.5 border border-gray-200">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="text-xs font-bold text-gray-700">#{o.id.slice(0, 8)}</span>
+                                          <span className="text-xs text-gray-500 truncate">{o.customer_name}</span>
+                                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 ${
+                                            o.status === 'going-to-store'
+                                              ? 'bg-orange-100 text-orange-700'
+                                              : 'bg-blue-100 text-blue-700'
+                                          }`}>
+                                            {o.status === 'going-to-store' ? '🏪 Di Kedai' : '🚗 Menuju'}
+                                          </span>
+                                        </div>
+                                        {o.customer_note && (
+                                          <div className="text-[10px] text-yellow-700 bg-yellow-50 rounded px-1.5 py-0.5 mt-1 italic truncate">
+                                            Catatan: {o.customer_note}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        <a
+                                          href={`https://wa.me/${normalizePhoneForWhatsApp(o.customer_phone)}`}
+                                          target="_blank" rel="noopener noreferrer"
+                                          className="p-1.5 bg-green-50 text-green-600 rounded-lg border border-green-100"
+                                          title="WhatsApp"
+                                        >
+                                          <MessageCircle className="w-3 h-3" />
+                                        </a>
+                                        {o.status === 'going-to-store' && (
+                                          <button
+                                            onClick={() => handleUpdateStatus(o.id, "picked-up")}
+                                            disabled={actionLoading}
+                                            className="px-2.5 py-1.5 bg-green-600 text-white rounded-lg text-[11px] font-bold shadow-sm disabled:opacity-50"
+                                          >
+                                            ✓ Ambil
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
                                 ))}
                               </div>
+
+                              {/* Batch Action Buttons */}
                               <div className="flex gap-2">
-                                {task.orders[0].status === "processing" ? (
+                                {processingOrders.length > 0 && (
                                   <button
                                     onClick={async () => {
                                       setActionLoading(true);
                                       try {
-                                        for (const o of task.orders) {
+                                        for (const o of processingOrders) {
                                           await updateOrderStatus(o.id, "going-to-store", driverId);
                                         }
-                                        toast.success("Status: Menuju ke kedai");
+                                        toast.success(
+                                          processingOrders.length > 1
+                                            ? `${processingOrders.length} pesanan: Status menuju ke kedai`
+                                            : "Status: Menuju ke kedai"
+                                        );
                                       } catch { toast.error("Gagal update status"); }
                                       finally { setActionLoading(false); }
                                     }}
                                     disabled={actionLoading}
-                                    className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-bold shadow-sm"
+                                    className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-bold shadow-sm disabled:opacity-50"
                                   >
-                                    Menuju Toko
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => setShowOrderItemsDetail({ orderId: task.orders[0].id, outletName: task.outlet?.name })}
-                                    className="flex-1 py-2 bg-white border border-orange-200 text-orange-600 rounded-lg text-sm font-bold"
-                                  >
-                                    Ambil Pesanan
+                                    🚗 Menuju Toko{processingOrders.length > 1 ? ` (${processingOrders.length})` : ''}
                                   </button>
                                 )}
-                                {task.orders.length > 1 && task.orders.every(o => o.status === "going-to-store") && (
+                                {allGoingToStore && task.orders.length > 1 && (
                                   <button
                                     onClick={async () => {
                                       setActionLoading(true);
@@ -812,21 +845,22 @@ export function DriverPanel() {
                                         for (const o of task.orders) {
                                           await updateOrderStatus(o.id, "picked-up", driverId);
                                         }
-                                        toast.success("Semua pesanan di kedai ini diambil!");
+                                        toast.success("Semua pesanan diambil!");
                                       } catch { toast.error("Gagal update"); }
                                       finally { setActionLoading(false); }
                                     }}
-                                    className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-bold"
+                                    disabled={actionLoading}
+                                    className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-bold disabled:opacity-50"
                                   >
-                                    Ambil Semua
+                                    ✓ Ambil Semua ({task.orders.length})
                                   </button>
                                 )}
-                                {task.orders.length === 1 && task.orders[0].status === "going-to-store" && (
+                                {goingToStoreOrders.length === 0 && processingOrders.length === 0 && (
                                   <button
-                                    onClick={() => handleUpdateStatus(task.orders[0].id, "picked-up")}
-                                    className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-bold"
+                                    onClick={() => setShowOrderItemsDetail({ orderId: task.orders[0].id, outletName: task.outlet?.name })}
+                                    className="flex-1 py-2 bg-white border border-orange-200 text-orange-600 rounded-lg text-sm font-bold"
                                   >
-                                    Sudah Ambil
+                                    Lihat Detail
                                   </button>
                                 )}
                               </div>
