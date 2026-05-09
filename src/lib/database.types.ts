@@ -440,6 +440,10 @@ export type Database = {
         Row: {
           address: string;
           admin_fee: number;
+          admin_edit_log: Json | null;
+          cancelled_at: string | null;
+          cancelled_by: string | null;
+          cancellation_reason: string | null;
           charged_distance: number;
           created_at: string;
           customer_latitude: number | null;
@@ -451,12 +455,15 @@ export type Database = {
           delivery_data: Json | null;
           delivery_fee: number;
           distance: number;
+          driver_compensation: number;
           driver_id: string | null;
           driver_name: string | null;
           final_payment_amount: number | null;
           id: string;
           is_delivery_service: boolean;
           is_manual_order: boolean;
+          original_subtotal: number | null;
+          original_total: number | null;
           outlet_id: string;
           outlet_name: string;
           payment_method: string;
@@ -475,6 +482,10 @@ export type Database = {
         Insert: {
           address: string;
           admin_fee?: number;
+          admin_edit_log?: Json | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          cancellation_reason?: string | null;
           charged_distance: number;
           created_at?: string;
           customer_latitude?: number | null;
@@ -486,12 +497,15 @@ export type Database = {
           delivery_data?: Json | null;
           delivery_fee: number;
           distance: number;
+          driver_compensation?: number;
           driver_id?: string | null;
           driver_name?: string | null;
           final_payment_amount?: number | null;
           id: string;
           is_delivery_service?: boolean;
           is_manual_order?: boolean;
+          original_subtotal?: number | null;
+          original_total?: number | null;
           outlet_id: string;
           outlet_name: string;
           payment_method: string;
@@ -510,6 +524,10 @@ export type Database = {
         Update: {
           address?: string;
           admin_fee?: number;
+          admin_edit_log?: Json | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          cancellation_reason?: string | null;
           charged_distance?: number;
           created_at?: string;
           customer_latitude?: number | null;
@@ -521,12 +539,15 @@ export type Database = {
           delivery_data?: Json | null;
           delivery_fee?: number;
           distance?: number;
+          driver_compensation?: number;
           driver_id?: string | null;
           driver_name?: string | null;
           final_payment_amount?: number | null;
           id?: string;
           is_delivery_service?: boolean;
           is_manual_order?: boolean;
+          original_subtotal?: number | null;
+          original_total?: number | null;
           outlet_id?: string;
           outlet_name?: string;
           payment_method?: string;
@@ -825,6 +846,32 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      admin_cancel_order: {
+        Args: {
+          p_order_id: string;
+          p_reason: string;
+          p_compensation?: number;
+        };
+        Returns: undefined;
+      };
+      admin_edit_order: {
+        Args: {
+          p_order_id: string;
+          p_new_subtotal?: number;
+          p_new_delivery_fee?: number;
+          p_new_total?: number;
+          p_edit_note?: string;
+          p_new_items?: Json;
+        };
+        Returns: undefined;
+      };
+      admin_reassign_driver: {
+        Args: {
+          p_order_id: string;
+          p_reason?: string;
+        };
+        Returns: undefined;
+      };
       assign_driver_to_order: {
         Args: {
           p_driver_id: string;
@@ -900,6 +947,10 @@ export type Database = {
       delete_order: { Args: { p_order_id: string }; Returns: undefined };
       driver_reject_order: {
         Args: { p_driver_id: string; p_order_id: string };
+        Returns: undefined;
+      };
+      driver_release_order: {
+        Args: { p_order_id: string; p_driver_id: string };
         Returns: undefined;
       };
       get_server_time: { Args: never; Returns: string };

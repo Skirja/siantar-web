@@ -35,6 +35,13 @@ import {
   Pizza,
   EyeOff,
   Eye,
+  RotateCcw,
+  XCircle,
+  Pencil,
+  History,
+  Minus,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useData, Order, Outlet, Profile, OrderStatus } from "../../contexts/DataContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -113,6 +120,10 @@ export function AdminPanel() {
     updateOrderStatus,
     rejectOrder,
     deleteOrder,
+    adminReassignDriver,
+    adminCancelOrder,
+    adminEditOrder,
+    driverReleaseOrder: _driverReleaseOrder,
     getProductsByOutlet,
     addDriver,
     updateDriver,
@@ -122,6 +133,7 @@ export function AdminPanel() {
     loadingDrivers,
     appSettings,
     updateAppSetting,
+    fetchOrderItems,
   } = useData();
 
   const [activeTab, setActiveTab] = useState<
@@ -297,6 +309,43 @@ export function AdminPanel() {
 
   // Manual Order
   const [showManualOrderModal, setShowManualOrderModal] = useState(false);
+
+  // --- FEATURE: Reassign Driver ---
+  const [reassignOrderId, setReassignOrderId] = useState<string | null>(null);
+  const [reassignReason, setReassignReason] = useState("");
+  const [reassignLoading, setReassignLoading] = useState(false);
+
+  // --- FEATURE: Cancel Order ---
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelReasonCustom, setCancelReasonCustom] = useState("");
+  const [cancelCompensation, setCancelCompensation] = useState(0);
+  const [cancelLoading, setCancelLoading] = useState(false);
+
+  const CANCEL_REASONS = [
+    "Customer membatalkan",
+    "Menu habis",
+    "Resto/Kedai tutup",
+    "Driver terkendala",
+    "Pembayaran gagal",
+    "Duplikat order",
+    "Lainnya",
+  ];
+
+  // --- FEATURE: Edit Order ---
+  const [editOrderId, setEditOrderId] = useState<string | null>(null);
+  const [editOrderTab, setEditOrderTab] = useState<"items" | "prices">("items");
+  const [editItems, setEditItems] = useState<Array<{ name: string; price: number; quantity: number; item_total: number; note?: string }>>([]);
+  const [editLoadingItems, setEditLoadingItems] = useState(false);
+  const [editSubtotal, setEditSubtotal] = useState(0);
+  const [editDeliveryFee, setEditDeliveryFee] = useState(0);
+  const [editTotal, setEditTotal] = useState(0);
+  const [editNote, setEditNote] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editNewItemName, setEditNewItemName] = useState("");
+  const [editNewItemPrice, setEditNewItemPrice] = useState(0);
+  const [editNewItemQty, setEditNewItemQty] = useState(1);
+  const [showEditLog, setShowEditLog] = useState<string | null>(null);
 
   useEffect(() => {
     if (loading) return;
@@ -571,6 +620,126 @@ export function AdminPanel() {
       toast.error(err.message || "Gagal update status");
     } finally {
       setAdminOverrideLoading(false);
+    }
+  };
+
+  // --- Handler: Reassign Driver ---
+  const handleReassignDriver = async () => {
+    if (!reassignOrderId) return;
+    setReassignLoading(true);
+    try {
+      await adminReassignDriver(reassignOrderId, reassignReason.trim() || undefined);
+      toast.success("Driver berhasil dilepas. Order dikembalikan ke pool.");
+      setReassignOrderId(null);
+      setReassignReason("");
+    } catch (err: any) {
+      toast.error(err.message || "Gagal mengalihkan driver");
+    } finally {
+      setReassignLoading(false);
+    }
+  };
+
+  // --- Handler: Cancel Order ---
+  const handleCancelOrder = async () => {
+    if (!cancelOrderId) return;
+    const finalReason = cancelReason === "Lainnya" ? cancelReasonCustom.trim() : cancelReason;
+    if (!finalReason) {
+      toast.error("Alasan pembatalan wajib diisi");
+      return;
+    }
+    setCancelLoading(true);
+    try {
+      await adminCancelOrder(cancelOrderId, finalReason, cancelCompensation);
+      toast.success("Pesanan berhasil dibatalkan");
+      setCancelOrderId(null);
+      setCancelReason("");
+      setCancelReasonCustom("");
+      setCancelCompensation(0);
+    } catch (err: any) {
+      toast.error(err.message || "Gagal membatalkan pesanan");
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  // --- Handler: Open Edit Order ---
+  const handleOpenEditOrder = async (order: Order) => {
+    setEditOrderId(order.id);
+    setEditOrderTab("items");
+    setEditSubtotal(order.subtotal);
+    setEditDeliveryFee(order.delivery_fee);
+    setEditTotal(order.total);
+    setEditNote("");
+    setEditNewItemName("");
+    setEditNewItemPrice(0);
+    setEditNewItemQty(1);
+    setEditLoadingItems(true);
+    try {
+      const items = await fetchOrderItems(order.id);
+      setEditItems(items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, item_total: i.item_total, note: i.note || undefined })));
+    } finally {
+      setEditLoadingItems(false);
+    }
+  };
+
+  // Recompute subtotal from edit items
+  const computedSubtotal = editItems.reduce((s, i) => s + i.item_total, 0);
+
+  const handleEditItemQty = (idx: number, delta: number) => {
+    setEditItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      const newQty = Math.max(1, item.quantity + delta);
+      return { ...item, quantity: newQty, item_total: item.price * newQty };
+    }));
+  };
+
+  const handleEditItemPrice = (idx: number, newPrice: number) => {
+    setEditItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      return { ...item, price: newPrice, item_total: newPrice * item.quantity };
+    }));
+  };
+
+  const handleDeleteEditItem = (idx: number) => {
+    setEditItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleAddEditItem = () => {
+    if (!editNewItemName.trim()) { toast.error("Nama item wajib diisi"); return; }
+    if (editNewItemPrice <= 0) { toast.error("Harga harus > 0"); return; }
+    const newItem = {
+      name: editNewItemName.trim(),
+      price: editNewItemPrice,
+      quantity: editNewItemQty,
+      item_total: editNewItemPrice * editNewItemQty,
+    };
+    setEditItems(prev => [...prev, newItem]);
+    setEditNewItemName("");
+    setEditNewItemPrice(0);
+    setEditNewItemQty(1);
+  };
+
+  const handleSaveEditOrder = async () => {
+    if (!editOrderId) return;
+    if (editItems.length === 0) { toast.error("Pesanan tidak boleh kosong"); return; }
+    if (!editNote.trim()) { toast.error("Catatan edit wajib diisi"); return; }
+    const newSub = computedSubtotal;
+    const newTotal = newSub + editDeliveryFee;
+    setEditLoading(true);
+    try {
+      await adminEditOrder(editOrderId, {
+        newSubtotal: newSub,
+        newDeliveryFee: editDeliveryFee,
+        newTotal: newTotal,
+        editNote: editNote.trim(),
+        newItems: editItems,
+      });
+      toast.success("Pesanan berhasil diperbarui");
+      setEditOrderId(null);
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menyimpan perubahan");
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -1761,6 +1930,343 @@ export function AdminPanel() {
                               >
                                 Hapus Pesanan
                               </button>
+                            </div>
+                          )}
+                          {/* --- FEATURE: Reassign Driver --- */}
+                          {order.driver_id && ["driver_assigned", "processing", "going-to-store"].includes(order.status) && (
+                            <div className="mt-3">
+                              {reassignOrderId === order.id ? (
+                                <div className="bg-amber-50 border border-amber-300 rounded-lg p-3">
+                                  <div className="text-xs font-bold text-amber-800 mb-2 flex items-center gap-1">
+                                    <RotateCcw className="w-3 h-3" />
+                                    Alihkan Driver
+                                  </div>
+                                  {order.status === "going-to-store" && (
+                                    <div className="mb-2 text-[10px] bg-orange-100 text-orange-700 border border-orange-200 rounded px-2 py-1 font-bold">
+                                      ⚠️ Driver sedang menuju toko. Yakin ingin mengalihkan?
+                                    </div>
+                                  )}
+                                  <input
+                                    type="text"
+                                    placeholder="Alasan (opsional)"
+                                    value={reassignReason}
+                                    onChange={e => setReassignReason(e.target.value)}
+                                    className="w-full px-2 py-1.5 text-xs border border-amber-300 rounded mb-2 focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white"
+                                  />
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={handleReassignDriver}
+                                      disabled={reassignLoading}
+                                      className="flex-1 py-1.5 bg-amber-500 text-white rounded text-xs font-bold hover:bg-amber-600 disabled:opacity-50"
+                                    >
+                                      {reassignLoading ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : "✓ Alihkan"}
+                                    </button>
+                                    <button
+                                      onClick={() => { setReassignOrderId(null); setReassignReason(""); }}
+                                      className="flex-1 py-1.5 bg-white text-gray-600 rounded text-xs border hover:bg-gray-50"
+                                    >
+                                      Batal
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { setReassignOrderId(order.id); setCancelOrderId(null); setEditOrderId(null); }}
+                                  className="w-full px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold hover:bg-amber-100 transition-colors flex items-center justify-center gap-1"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  Alihkan Driver
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* --- FEATURE: Cancel Order --- */}
+                          {!["cancelled", "completed"].includes(order.status) && (
+                            <div className="mt-3">
+                              {cancelOrderId === order.id ? (
+                                <div className="bg-red-50 border border-red-300 rounded-lg p-3">
+                                  <div className="text-xs font-bold text-red-800 mb-2 flex items-center gap-1">
+                                    <XCircle className="w-3 h-3" />
+                                    Batalkan Pesanan
+                                  </div>
+                                  {["picked-up", "on-delivery"].includes(order.status) && (
+                                    <div className="mb-2 text-[10px] bg-red-100 text-red-700 border border-red-300 rounded px-2 py-1 font-bold">
+                                      🚨 Driver sudah ambil pesanan! Force cancel berpotensi merugikan driver.
+                                    </div>
+                                  )}
+                                  <select
+                                    value={cancelReason}
+                                    onChange={e => setCancelReason(e.target.value)}
+                                    className="w-full px-2 py-1.5 text-xs border border-red-300 rounded mb-2 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white"
+                                  >
+                                    <option value="">-- Pilih alasan --</option>
+                                    {CANCEL_REASONS.map(r => (
+                                      <option key={r} value={r}>{r}</option>
+                                    ))}
+                                  </select>
+                                  {cancelReason === "Lainnya" && (
+                                    <input
+                                      type="text"
+                                      placeholder="Tulis alasan..."
+                                      value={cancelReasonCustom}
+                                      onChange={e => setCancelReasonCustom(e.target.value)}
+                                      className="w-full px-2 py-1.5 text-xs border border-red-300 rounded mb-2 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white"
+                                    />
+                                  )}
+                                  {order.driver_id && (
+                                    <div className="mb-2">
+                                      <label className="text-[10px] text-gray-500 font-medium">Kompensasi Driver (Rp)</label>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={50000}
+                                        step={500}
+                                        value={cancelCompensation}
+                                        onChange={e => setCancelCompensation(Number(e.target.value))}
+                                        className="w-full px-2 py-1.5 text-xs border border-red-200 rounded focus:outline-none focus:ring-1 focus:ring-red-400 bg-white mt-0.5"
+                                      />
+                                    </div>
+                                  )}
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={handleCancelOrder}
+                                      disabled={cancelLoading || !cancelReason || (cancelReason === "Lainnya" && !cancelReasonCustom.trim())}
+                                      className="flex-1 py-1.5 bg-red-600 text-white rounded text-xs font-bold hover:bg-red-700 disabled:opacity-50"
+                                    >
+                                      {cancelLoading ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : "❌ Batalkan"}
+                                    </button>
+                                    <button
+                                      onClick={() => { setCancelOrderId(null); setCancelReason(""); setCancelReasonCustom(""); setCancelCompensation(0); }}
+                                      className="flex-1 py-1.5 bg-white text-gray-600 rounded text-xs border hover:bg-gray-50"
+                                    >
+                                      Batal
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { setCancelOrderId(order.id); setReassignOrderId(null); setEditOrderId(null); }}
+                                  className="w-full px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-1"
+                                >
+                                  <XCircle className="w-3 h-3" />
+                                  Batalkan Pesanan
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* --- FEATURE: Edit Order --- */}
+                          {!["cancelled", "completed"].includes(order.status) && (
+                            <div className="mt-3">
+                              {editOrderId === order.id ? (
+                                <div className="bg-blue-50 border border-blue-300 rounded-lg p-3">
+                                  <div className="text-xs font-bold text-blue-800 mb-3 flex items-center gap-1">
+                                    <Pencil className="w-3 h-3" />
+                                    Edit Pesanan
+                                  </div>
+                                  {/* Tabs */}
+                                  <div className="flex mb-3 border border-blue-200 rounded overflow-hidden">
+                                    <button
+                                      onClick={() => setEditOrderTab("items")}
+                                      className={`flex-1 py-1.5 text-[11px] font-bold transition-all ${editOrderTab === "items" ? "bg-blue-600 text-white" : "bg-white text-blue-700 hover:bg-blue-50"}`}
+                                    >
+                                      Item
+                                    </button>
+                                    <button
+                                      onClick={() => setEditOrderTab("prices")}
+                                      className={`flex-1 py-1.5 text-[11px] font-bold transition-all ${editOrderTab === "prices" ? "bg-blue-600 text-white" : "bg-white text-blue-700 hover:bg-blue-50"}`}
+                                    >
+                                      Harga
+                                    </button>
+                                  </div>
+
+                                  {editOrderTab === "items" && (
+                                    <div>
+                                      {editLoadingItems ? (
+                                        <div className="flex justify-center py-3"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div>
+                                      ) : (
+                                        <div className="space-y-2 mb-3 max-h-48 overflow-y-auto pr-1">
+                                          {editItems.map((item, idx) => (
+                                            <div key={idx} className="bg-white border border-blue-100 rounded p-2">
+                                              <div className="flex items-center justify-between mb-1">
+                                                <span className="text-xs font-medium text-gray-800 flex-1 mr-2 line-clamp-1">{item.name}</span>
+                                                <button onClick={() => handleDeleteEditItem(idx)} className="text-red-400 hover:text-red-600 flex-shrink-0">
+                                                  <Trash2 className="w-3 h-3" />
+                                                </button>
+                                              </div>
+                                              <div className="flex items-center gap-2">
+                                                <input
+                                                  type="number"
+                                                  value={item.price}
+                                                  onChange={e => handleEditItemPrice(idx, Number(e.target.value))}
+                                                  className="w-24 px-1.5 py-1 text-[10px] border rounded focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                                  placeholder="Harga"
+                                                />
+                                                <div className="flex items-center gap-1">
+                                                  <button onClick={() => handleEditItemQty(idx, -1)} className="w-5 h-5 bg-gray-100 rounded flex items-center justify-center hover:bg-gray-200">
+                                                    <Minus className="w-2.5 h-2.5" />
+                                                  </button>
+                                                  <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
+                                                  <button onClick={() => handleEditItemQty(idx, 1)} className="w-5 h-5 bg-gray-100 rounded flex items-center justify-center hover:bg-gray-200">
+                                                    <Plus className="w-2.5 h-2.5" />
+                                                  </button>
+                                                </div>
+                                                <span className="text-[10px] text-orange-600 font-bold ml-auto">{formatCurrency(item.item_total)}</span>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {/* Add new item */}
+                                      <div className="bg-white border border-dashed border-blue-300 rounded p-2 mb-2">
+                                        <div className="text-[10px] font-bold text-blue-600 mb-1">+ Tambah Item</div>
+                                        <input
+                                          type="text"
+                                          placeholder="Nama item"
+                                          value={editNewItemName}
+                                          onChange={e => setEditNewItemName(e.target.value)}
+                                          className="w-full px-1.5 py-1 text-[10px] border rounded mb-1 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                        />
+                                        <div className="flex gap-1">
+                                          <input
+                                            type="number"
+                                            placeholder="Harga"
+                                            value={editNewItemPrice || ""}
+                                            onChange={e => setEditNewItemPrice(Number(e.target.value))}
+                                            className="flex-1 px-1.5 py-1 text-[10px] border rounded focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                          />
+                                          <input
+                                            type="number"
+                                            placeholder="Qty"
+                                            min={1}
+                                            value={editNewItemQty}
+                                            onChange={e => setEditNewItemQty(Math.max(1, Number(e.target.value)))}
+                                            className="w-12 px-1.5 py-1 text-[10px] border rounded focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                          />
+                                          <button onClick={handleAddEditItem} className="px-2 py-1 bg-blue-500 text-white rounded text-[10px] font-bold hover:bg-blue-600">
+                                            +
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <div className="text-[10px] text-gray-600 bg-blue-100 px-2 py-1 rounded flex justify-between">
+                                        <span>Subtotal dari item:</span>
+                                        <span className="font-bold text-blue-700">{formatCurrency(computedSubtotal)}</span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {editOrderTab === "prices" && (
+                                    <div className="space-y-2">
+                                      <div>
+                                        <label className="text-[10px] text-gray-500 font-medium">Subtotal (auto dari item)</label>
+                                        <div className="px-2 py-1.5 text-xs border border-gray-200 rounded bg-gray-50 text-gray-700 font-bold">
+                                          {formatCurrency(computedSubtotal)}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <label className="text-[10px] text-gray-500 font-medium">Ongkir (Rp)</label>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          value={editDeliveryFee}
+                                          onChange={e => setEditDeliveryFee(Number(e.target.value))}
+                                          className="w-full px-2 py-1.5 text-xs border border-blue-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                                        />
+                                      </div>
+                                      <div className="flex justify-between text-xs font-bold bg-blue-100 px-2 py-1.5 rounded">
+                                        <span>Total baru:</span>
+                                        <span className="text-blue-700">{formatCurrency(computedSubtotal + editDeliveryFee)}</span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Edit Note (required) */}
+                                  <div className="mt-3">
+                                    <label className="text-[10px] text-gray-500 font-medium">Catatan Edit <span className="text-red-500">*</span></label>
+                                    <input
+                                      type="text"
+                                      placeholder="Alasan / catatan perubahan..."
+                                      value={editNote}
+                                      onChange={e => setEditNote(e.target.value)}
+                                      className="w-full px-2 py-1.5 text-xs border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white mt-0.5"
+                                    />
+                                  </div>
+
+                                  <div className="flex gap-2 mt-3">
+                                    <button
+                                      onClick={handleSaveEditOrder}
+                                      disabled={editLoading}
+                                      className="flex-1 py-1.5 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 disabled:opacity-50"
+                                    >
+                                      {editLoading ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : "💾 Simpan"}
+                                    </button>
+                                    <button
+                                      onClick={() => setEditOrderId(null)}
+                                      className="flex-1 py-1.5 bg-white text-gray-600 rounded text-xs border hover:bg-gray-50"
+                                    >
+                                      Batal
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-1">
+                                  <button
+                                    onClick={() => { handleOpenEditOrder(order); setReassignOrderId(null); setCancelOrderId(null); }}
+                                    className="w-full px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors flex items-center justify-center gap-1"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                    Edit Pesanan
+                                  </button>
+                                  {/* Edit History */}
+                                  {(order as any).admin_edit_log && Array.isArray((order as any).admin_edit_log) && (order as any).admin_edit_log.length > 0 && (
+                                    <button
+                                      onClick={() => setShowEditLog(showEditLog === order.id ? null : order.id)}
+                                      className="w-full px-3 py-1.5 text-[10px] text-gray-500 bg-gray-50 border border-gray-200 rounded flex items-center justify-between hover:bg-gray-100 transition-colors"
+                                    >
+                                      <span className="flex items-center gap-1"><History className="w-3 h-3" /> Riwayat Edit ({(order as any).admin_edit_log.length}x)</span>
+                                      {showEditLog === order.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                    </button>
+                                  )}
+                                  {showEditLog === order.id && (
+                                    <div className="bg-gray-50 border border-gray-200 rounded p-2 space-y-1.5 max-h-32 overflow-y-auto">
+                                      {((order as any).admin_edit_log as any[]).map((entry: any, i: number) => (
+                                        <div key={i} className="text-[9px] text-gray-600 border-b border-gray-100 pb-1">
+                                          <div className="font-bold text-gray-700">{new Date(entry.timestamp).toLocaleString("id-ID")}</div>
+                                          <div className="italic">{entry.note}</div>
+                                          <div className="flex gap-2 mt-0.5">
+                                            <span>Sub: {formatCurrency(entry.old_subtotal)}→{formatCurrency(entry.new_subtotal)}</span>
+                                            <span>Ongkir: {formatCurrency(entry.old_delivery_fee)}→{formatCurrency(entry.new_delivery_fee)}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Cancellation Info (for cancelled orders) */}
+                          {order.status === "cancelled" && (order as any).cancellation_reason && (
+                            <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                              <div className="text-xs font-bold text-red-700 mb-1 flex items-center gap-1">
+                                <XCircle className="w-3 h-3" />
+                                Info Pembatalan
+                              </div>
+                              <div className="text-[10px] text-gray-700">
+                                <span className="font-medium">Alasan:</span> {(order as any).cancellation_reason}
+                              </div>
+                              {(order as any).cancelled_at && (
+                                <div className="text-[10px] text-gray-500 mt-0.5">
+                                  {new Date((order as any).cancelled_at).toLocaleString("id-ID")}
+                                </div>
+                              )}
+                              {(order as any).driver_compensation > 0 && (
+                                <div className="text-[10px] text-green-700 mt-0.5 font-medium">
+                                  Kompensasi driver: {formatCurrency((order as any).driver_compensation)}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

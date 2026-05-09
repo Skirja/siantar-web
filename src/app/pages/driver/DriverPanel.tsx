@@ -50,7 +50,7 @@ export function DriverPanel() {
   const {
     orders, drivers, updateOrderStatus, feeSettings, outlets,
     driverRejectOrder, toggleDriverOnline, completeOrderWithDeduction, updateDriverBalance,
-    updateDriverLocation
+    updateDriverLocation, driverReleaseOrder
   } = useData();
   
   // Multi-order support: get all active orders for this driver
@@ -579,6 +579,28 @@ export function DriverPanel() {
                               <span>Tolak</span>
                             </button>
                           </div>
+                          {/* Lepaskan Order - no penalty, voluntary release */}
+                          <button
+                            onClick={() => setConfirmAction({
+                              title: "Lepaskan Order",
+                              description: "Yakin ingin melepaskan order ini? Order akan dikembalikan ke pool tanpa penalti.",
+                              onConfirm: async () => {
+                                setActionLoading(true);
+                                try {
+                                  await driverReleaseOrder(order.id, driverId!);
+                                  toast.success("Order dilepaskan");
+                                } catch (err: any) {
+                                  toast.error(err.message || "Gagal melepaskan order");
+                                } finally {
+                                  setActionLoading(false);
+                                }
+                              },
+                            })}
+                            disabled={actionLoading}
+                            className="w-full mt-2 px-4 py-2 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
+                          >
+                            🚫 Lepaskan Order (tanpa penalti)
+                          </button>
                         </div>
                       );
                     })}
@@ -814,7 +836,7 @@ export function DriverPanel() {
                               </div>
 
                               {/* Batch Action Buttons */}
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 flex-wrap">
                                 {processingOrders.length > 0 && (
                                   <button
                                     onClick={async () => {
@@ -861,6 +883,32 @@ export function DriverPanel() {
                                     className="flex-1 py-2 bg-white border border-orange-200 text-orange-600 rounded-lg text-sm font-bold"
                                   >
                                     Lihat Detail
+                                  </button>
+                                )}
+                                {/* Lepaskan semua order di pickup group ini (sebelum pickup) */}
+                                {task.orders.every(o => ["processing", "going-to-store"].includes(o.status)) && (
+                                  <button
+                                    onClick={() => setConfirmAction({
+                                      title: "Lepaskan Order",
+                                      description: `Lepaskan ${task.orders.length > 1 ? `${task.orders.length} pesanan` : "pesanan"} ini? Order akan dikembalikan ke pool tanpa penalti.`,
+                                      onConfirm: async () => {
+                                        setActionLoading(true);
+                                        try {
+                                          for (const o of task.orders) {
+                                            await driverReleaseOrder(o.id, driverId!);
+                                          }
+                                          toast.success("Order dilepaskan");
+                                        } catch (err: any) {
+                                          toast.error(err.message || "Gagal melepaskan");
+                                        } finally {
+                                          setActionLoading(false);
+                                        }
+                                      },
+                                    })}
+                                    disabled={actionLoading}
+                                    className="w-full py-1.5 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50 mt-1 font-medium"
+                                  >
+                                    🚫 Lepaskan{task.orders.length > 1 ? ` Semua (${task.orders.length})` : ''} (tanpa penalti)
                                   </button>
                                 )}
                               </div>

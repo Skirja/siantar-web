@@ -131,6 +131,19 @@ interface DataContextType {
   ) => Promise<string>;
   rejectOrder: (orderId: string) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
+  adminReassignDriver: (orderId: string, reason?: string) => Promise<void>;
+  adminCancelOrder: (orderId: string, reason: string, compensation?: number) => Promise<void>;
+  adminEditOrder: (
+    orderId: string,
+    changes: {
+      newSubtotal?: number;
+      newDeliveryFee?: number;
+      newTotal?: number;
+      editNote: string;
+      newItems?: Array<{ name: string; price: number; quantity: number; item_total: number; note?: string }>;
+    },
+  ) => Promise<void>;
+  driverReleaseOrder: (orderId: string, driverId: string) => Promise<void>;
   refreshOrders: () => Promise<void>;
   loadingOrders: boolean;
 
@@ -684,6 +697,75 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [refreshOrders],
   );
 
+  const adminReassignDriver = useCallback(
+    async (orderId: string, reason?: string) => {
+      const { error } = await supabase.rpc("admin_reassign_driver", {
+        p_order_id: orderId,
+        p_reason: reason || "Admin mengalihkan driver",
+      });
+      if (error) throw error;
+      await refreshOrders();
+    },
+    [refreshOrders],
+  );
+
+  const adminCancelOrder = useCallback(
+    async (orderId: string, reason: string, compensation: number = 0) => {
+      const { error } = await supabase.rpc("admin_cancel_order", {
+        p_order_id: orderId,
+        p_reason: reason,
+        p_compensation: compensation,
+      });
+      if (error) throw error;
+      await refreshOrders();
+      if (compensation > 0) await refreshDrivers();
+    },
+    [refreshOrders, refreshDrivers],
+  );
+
+  const adminEditOrder = useCallback(
+    async (
+      orderId: string,
+      changes: {
+        newSubtotal?: number;
+        newDeliveryFee?: number;
+        newTotal?: number;
+        editNote: string;
+        newItems?: Array<{ name: string; price: number; quantity: number; item_total: number; note?: string }>;
+      },
+    ) => {
+      const { error } = await supabase.rpc("admin_edit_order", {
+        p_order_id: orderId,
+        p_new_subtotal: changes.newSubtotal ?? null,
+        p_new_delivery_fee: changes.newDeliveryFee ?? null,
+        p_new_total: changes.newTotal ?? null,
+        p_edit_note: changes.editNote,
+        p_new_items: changes.newItems ? (changes.newItems as any) : null,
+      });
+      if (error) throw error;
+      // Clear cached items for this order so they re-fetch
+      setOrderItemsCache((prev) => {
+        const next = { ...prev };
+        delete next[orderId];
+        return next;
+      });
+      await refreshOrders();
+    },
+    [refreshOrders],
+  );
+
+  const driverReleaseOrder = useCallback(
+    async (orderId: string, driverIdParam: string) => {
+      const { error } = await supabase.rpc("driver_release_order", {
+        p_order_id: orderId,
+        p_driver_id: driverIdParam,
+      });
+      if (error) throw error;
+      await refreshOrders();
+    },
+    [refreshOrders],
+  );
+
   // Driver CRUD
   const addDriver = useCallback(
     async (
@@ -930,6 +1012,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         assignDriver,
         rejectOrder,
         deleteOrder,
+        adminReassignDriver,
+        adminCancelOrder,
+        adminEditOrder,
+        driverReleaseOrder,
         refreshOrders,
         loadingOrders,
         drivers,
