@@ -1990,9 +1990,13 @@ export function AdminPanel() {
                                     <XCircle className="w-3 h-3" />
                                     Batalkan Pesanan
                                   </div>
-                                  {["picked-up", "on-delivery"].includes(order.status) && (
+                                  {["picked-up", "on-delivery"].includes(order.status) ? (
                                     <div className="mb-2 text-[10px] bg-red-100 text-red-700 border border-red-300 rounded px-2 py-1 font-bold">
                                       🚨 Driver sudah ambil pesanan! Force cancel berpotensi merugikan driver.
+                                    </div>
+                                  ) : ["processing", "going-to-store"].includes(order.status) && (
+                                    <div className="mb-2 text-[10px] bg-orange-100 text-orange-700 border border-orange-200 rounded px-2 py-1 font-bold">
+                                      ⚠️ Driver sudah dekat / sampai resto, yakin ingin membatalkan?
                                     </div>
                                   )}
                                   <select

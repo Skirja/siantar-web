@@ -1,0 +1,20 @@
+description = "Research and Planning based on Project Stack"
+prompt = """
+Terima kasih. Sekarang bantu saya untuk melakukan implementasi, audit, perbaikan, atau penambahan fitur sesuai permintaan saya diakhir.
+
+Langkah-langkah yang harus kamu lakukan:
+1. Research Codebase: Pahami struktur vite App dan skema yang ada.
+2. Database Audit: Gunakan alat yang sesuai untuk mengecek tabel Supabase melalui Supabase MCP.
+3. Planning: Buat rencana lengkap yang mencakup:
+   - Penanganan edge cases dan pencegahan bug.
+   - Validasi skema (wajib untuk setiap entry point).
+   - Pemanfaatan supabase realtime jika fitur membutuhkan update real-time.
+4. Skills & Best Practices: Cek direktori `.agents/skills` untuk skill yang relevan  dan gunakan instruksi di dalamnya jika sesuai.
+5. Verification: Di akhir implementasi, lakukan npm lint, typecheck, dan npm build untuk memastikan tidak ada error.
+
+Jika ada hal yang belum jelas (seperti snapshot data atau logika bisnis tertentu), tanyakan kembali sebelum memulai. JANGAN PERNAH BARASUMSI, SEMUA HARUS DIPIKIRKAN SECARA MATANG, SERTA JANGAN AMBIL SHOTCUT APAPUN YANG MEMBUAT KODENYA BERANTAKAN!
+
+BUAT PLANNYA PASTIKAN ADA TUJUAN, PROMPT POSITIF, DAN PROMPT NEGATIVE AGAR SEMUANYA JELAS!
+
+{{args}}
+"""
